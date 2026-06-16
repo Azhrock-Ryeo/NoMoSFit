@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "559823737502",
+    "project_id": "nomosfit-87015",
+    "storage_bucket": "nomosfit-87015.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:559823737502:android:6f17ec31a0a58d59e1218f",
+        "android_client_info": {
+          "package_name": "com.nomosfit.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0ZDx2Bs9vKvJPCnFq0c0AMHypQX3nL-A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
