@@ -5,6 +5,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useAuthStore } from '../../store/authStore';
 import { database } from '../../lib/database';
+import { analyzeWorkout } from '../../services/AIService';
 
 export default function AfterWorkoutScreen() {
   const navigation = useNavigation<any>();
@@ -13,6 +14,8 @@ export default function AfterWorkoutScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'pending' | 'synced' | 'failed'>('pending');
+  const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState(false);
 
   const duration = startedAt
     ? Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
@@ -22,14 +25,37 @@ export default function AfterWorkoutScreen() {
 
   useEffect(() => {
     saveWorkout();
+    getAIAnalysis();
   }, []);
+
+  const getAIAnalysis = async () => {
+    setAiLoading(true);
+    try {
+      const analysis = await analyzeWorkout({
+        workoutName,
+        durationSeconds: duration,
+        exercises: exerciseLogs.map(log => ({
+          exerciseName: log.exerciseName,
+          sets: log.sets.map(s => ({
+            setNumber: s.setNumber,
+            achievedReps: s.achievedReps,
+            weight: s.weight,
+          })),
+        })),
+      });
+      setAiAnalysis(analysis);
+    } catch (e) {
+      console.error('AI error:', e);
+      setAiAnalysis('Great workout! Keep pushing toward your goals!');
+    }
+    setAiLoading(false);
+  };
 
   const saveWorkout = async () => {
     if (!user) return;
     setSaving(true);
 
     try {
-      // Step 1 — Save to WatermelonDB first (offline-first)
       const sessionsCollection = database.get('workout_sessions');
       const setLogsCollection = database.get('set_logs');
 
@@ -49,7 +75,6 @@ export default function AfterWorkoutScreen() {
 
         localSessionId = session.id;
 
-        // Save all set logs
         for (const log of exerciseLogs) {
           for (const s of log.sets) {
             await setLogsCollection.create((record: any) => {
@@ -70,7 +95,6 @@ export default function AfterWorkoutScreen() {
       setSaved(true);
       setSyncStatus('pending');
 
-      // Step 2 — Try to sync to Firestore immediately
       try {
         const { db } = await import('../../config/firebase');
         const docRef = await addDoc(collection(db, 'workoutSessions'), {
@@ -84,7 +108,6 @@ export default function AfterWorkoutScreen() {
           wasCompleted: true,
         });
 
-        // Update sync status in WatermelonDB
         const session = await database.get('workout_sessions').find(localSessionId);
         await database.write(async () => {
           await (session as any).update((record: any) => {
@@ -95,7 +118,6 @@ export default function AfterWorkoutScreen() {
 
         setSyncStatus('synced');
       } catch (syncError) {
-        // Firestore failed — data is safe in WatermelonDB, will sync later
         console.log('Firestore sync failed, will retry later:', syncError);
         setSyncStatus('failed');
       }
@@ -159,6 +181,21 @@ export default function AfterWorkoutScreen() {
             )
           ) : (
             <Text className="text-red-400">Failed to save</Text>
+          )}
+        </View>
+
+        {/* AI Analysis */}
+        <View className="bg-gray-900 rounded-2xl p-4 mb-4">
+          <Text className="text-green-400 font-bold mb-2">🤖 AI Coach Feedback</Text>
+          {aiLoading ? (
+            <View className="flex-row items-center">
+              <ActivityIndicator size="small" color="#4ade80" />
+              <Text className="text-gray-400 ml-3">Analyzing your workout...</Text>
+            </View>
+          ) : (
+            <Text className="text-gray-300 text-sm leading-6">
+              {aiAnalysis || 'Generating feedback...'}
+            </Text>
           )}
         </View>
 
