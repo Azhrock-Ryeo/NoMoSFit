@@ -9,9 +9,10 @@ const firebaseConfig = {
   storageBucket: "nomosfit-87015.firebasestorage.app",
   messagingSenderId: "559823737502",
   appId: "1:559823737502:web:ea8f913cf50621f0e1218f",
+  databaseURL: "https://nomosfit-87015-default-rtdb.asia-southeast1.firebasedatabase.app",
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
