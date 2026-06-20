@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { collection, addDoc } from 'firebase/firestore';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useAuthStore } from '../../store/authStore';
+import { database } from '../../lib/database';
 
 export default function AfterWorkoutScreen() {
   const navigation = useNavigation<any>();
@@ -11,6 +12,7 @@ export default function AfterWorkoutScreen() {
   const { user } = useAuthStore();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'pending' | 'synced' | 'failed'>('pending');
 
   const duration = startedAt
     ? Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
@@ -19,28 +21,89 @@ export default function AfterWorkoutScreen() {
   const totalSets = exerciseLogs.reduce((acc, e) => acc + e.sets.length, 0);
 
   useEffect(() => {
-    saveToFirestore();
+    saveWorkout();
   }, []);
 
-  const saveToFirestore = async () => {
+  const saveWorkout = async () => {
     if (!user) return;
     setSaving(true);
+
     try {
-      const { db } = await import('../../config/firebase');
-      await addDoc(collection(db, 'workoutSessions'), {
-        uid: user.uid,
-        workoutName,
-        exercises,
-        exerciseLogs,
-        startedAt,
-        endedAt: new Date().toISOString(),
-        durationSeconds: duration,
-        wasCompleted: true,
+      // Step 1 — Save to WatermelonDB first (offline-first)
+      const sessionsCollection = database.get('workout_sessions');
+      const setLogsCollection = database.get('set_logs');
+
+      let localSessionId = '';
+
+      await database.write(async () => {
+        const session = await sessionsCollection.create((record: any) => {
+          record.workoutId = 'manual';
+          record.workoutName = workoutName;
+          record.startedAt = startedAt ? new Date(startedAt).getTime() : Date.now();
+          record.endedAt = Date.now();
+          record.durationSeconds = duration;
+          record.wasCompleted = true;
+          record.syncStatus = 'pending';
+          record.firebaseId = '';
+        });
+
+        localSessionId = session.id;
+
+        // Save all set logs
+        for (const log of exerciseLogs) {
+          for (const s of log.sets) {
+            await setLogsCollection.create((record: any) => {
+              record.sessionId = session.id;
+              record.exerciseId = log.exerciseId || 'manual';
+              record.exerciseName = log.exerciseName;
+              record.setNumber = s.setNumber;
+              record.targetReps = (s as any).targetReps ?? 0;
+              record.achievedReps = s.achievedReps;
+              record.weight = s.weight;
+              record.completedAt = Date.now();
+              record.syncStatus = 'pending';
+            });
+          }
+        }
       });
+
       setSaved(true);
+      setSyncStatus('pending');
+
+      // Step 2 — Try to sync to Firestore immediately
+      try {
+        const { db } = await import('../../config/firebase');
+        const docRef = await addDoc(collection(db, 'workoutSessions'), {
+          uid: user.uid,
+          workoutName,
+          exercises,
+          exerciseLogs,
+          startedAt,
+          endedAt: new Date().toISOString(),
+          durationSeconds: duration,
+          wasCompleted: true,
+        });
+
+        // Update sync status in WatermelonDB
+        const session = await database.get('workout_sessions').find(localSessionId);
+        await database.write(async () => {
+          await (session as any).update((record: any) => {
+            record.syncStatus = 'synced';
+            record.firebaseId = docRef.id;
+          });
+        });
+
+        setSyncStatus('synced');
+      } catch (syncError) {
+        // Firestore failed — data is safe in WatermelonDB, will sync later
+        console.log('Firestore sync failed, will retry later:', syncError);
+        setSyncStatus('failed');
+      }
+
     } catch (e) {
       console.error('Save error:', e);
     }
+
     setSaving(false);
   };
 
@@ -84,10 +147,16 @@ export default function AfterWorkoutScreen() {
           {saving ? (
             <>
               <ActivityIndicator size="small" color="#4ade80" />
-              <Text className="text-gray-400 ml-3">Saving to cloud...</Text>
+              <Text className="text-gray-400 ml-3">Saving workout...</Text>
             </>
           ) : saved ? (
-            <Text className="text-green-400">✓ Saved to Firestore</Text>
+            syncStatus === 'synced' ? (
+              <Text className="text-green-400">✓ Saved locally + synced to cloud</Text>
+            ) : syncStatus === 'failed' ? (
+              <Text className="text-yellow-400">✓ Saved locally — will sync when online</Text>
+            ) : (
+              <Text className="text-blue-400">✓ Saved locally — syncing...</Text>
+            )
           ) : (
             <Text className="text-red-400">Failed to save</Text>
           )}
