@@ -2,6 +2,7 @@ import React from 'react';
 import { AuthProvider } from './src/app/providers/AuthProvider';
 import { QueryProvider } from './src/app/providers/QueryProvider';
 import { DatabaseProvider } from './src/app/providers/DatabaseProvider';
+import { SyncProvider } from './src/app/providers/SyncProvider';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
@@ -9,7 +10,9 @@ export default function App() {
     <DatabaseProvider>
       <QueryProvider>
         <AuthProvider>
-          <RootNavigator />
+          <SyncProvider>
+            <RootNavigator />
+          </SyncProvider>
         </AuthProvider>
       </QueryProvider>
     </DatabaseProvider>

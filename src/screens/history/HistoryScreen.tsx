@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { useAuthStore } from '../../store/authStore';
+import { database } from '../../lib/database';
 
-interface WorkoutSession {
+interface LocalSession {
   id: string;
   workoutName: string;
   durationSeconds: number;
-  endedAt: string;
-  exerciseLogs: any[];
+  endedAt: number;
+  syncStatus: string;
 }
 
 export default function HistoryScreen() {
   const { user } = useAuthStore();
-  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [sessions, setSessions] = useState<LocalSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,15 +23,20 @@ export default function HistoryScreen() {
   const fetchHistory = async () => {
     if (!user) return;
     try {
-      const { db } = await import('../../config/firebase');
-      const q = query(
-        collection(db, 'workoutSessions'),
-        where('uid', '==', user.uid),
-        orderBy('endedAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WorkoutSession[];
-      setSessions(data);
+      const sessionsCollection = database.get('workout_sessions');
+      const allSessions = await sessionsCollection.query().fetch();
+
+      const mapped = allSessions
+        .map((s: any) => ({
+          id: s.id,
+          workoutName: s.workoutName,
+          durationSeconds: s.durationSeconds,
+          endedAt: s.endedAt,
+          syncStatus: s.syncStatus,
+        }))
+        .sort((a, b) => b.endedAt - a.endedAt);
+
+      setSessions(mapped);
     } catch (e) {
       console.error(e);
     }
@@ -43,8 +48,8 @@ export default function HistoryScreen() {
     return `${m}m`;
   };
 
-  const formatDate = (iso: string) => {
-    return new Date(iso).toLocaleDateString('en-US', {
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric'
     });
   };
@@ -72,9 +77,12 @@ export default function HistoryScreen() {
                 <Text className="text-green-400 font-bold">{formatDuration(session.durationSeconds)}</Text>
               </View>
               <Text className="text-gray-400 text-sm mt-1">{formatDate(session.endedAt)}</Text>
-              <Text className="text-gray-500 text-xs mt-2">
-                {session.exerciseLogs?.length || 0} exercises
-              </Text>
+              <View className="flex-row items-center mt-2">
+                <View className={`w-2 h-2 rounded-full mr-2 ${session.syncStatus === 'synced' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                <Text className="text-gray-500 text-xs">
+                  {session.syncStatus === 'synced' ? 'Synced to cloud' : 'Pending sync'}
+                </Text>
+              </View>
             </View>
           ))}
         </ScrollView>
