@@ -1,31 +1,46 @@
-import React, { useEffect } from 'react';
+import React, {
+  PropsWithChildren,
+  useEffect,
+} from 'react';
+
 import { onAuthStateChanged } from 'firebase/auth';
+
+import { auth } from '../../config/firebase';
 import { useAuthStore } from '../../store/authStore';
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setUser, setLoading } = useAuthStore();
+export function AuthProvider({
+  children,
+}: PropsWithChildren) {
+  const setUser = useAuthStore(
+    (state) => state.setUser
+  );
+
+  const setLoading = useAuthStore(
+    (state) => state.setLoading
+  );
 
   useEffect(() => {
-    // Lazy import to avoid initialization timing issues
-    const initAuth = async () => {
-      try {
-        const { auth } = await import('../../config/firebase');
-        console.log('Auth object:', auth);
-        const unsub = onAuthStateChanged(auth, (user) => {
-          setUser(user);
-          setLoading(false);
-        });
-        return unsub;
-      } catch (e) {
-        console.error('Auth init error:', e);
+    setLoading(true);
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        setUser(user);
+        setLoading(false);
+      },
+      (error) => {
+        console.error(
+          'Firebase auth state error:',
+          error
+        );
+
+        setUser(null);
         setLoading(false);
       }
-    };
+    );
 
-    let unsubscribe: any;
-    initAuth().then(unsub => { unsubscribe = unsub; });
-    return () => { if (unsubscribe) unsubscribe(); };
-  }, []);
+    return unsubscribe;
+  }, [setLoading, setUser]);
 
   return <>{children}</>;
 }

@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "559823737502",
+    "firebase_url": "https://nomosfit-87015-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "nomosfit-87015",
     "storage_bucket": "nomosfit-87015.firebasestorage.app"
   },
@@ -12,7 +13,12 @@
           "package_name": "com.nomosfit.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "559823737502-jms239k2rn4lqmevmdpr87siahad4462.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB0ZDx2Bs9vKvJPCnFq0c0AMHypQX3nL-A"
@@ -20,7 +26,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "559823737502-jms239k2rn4lqmevmdpr87siahad4462.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

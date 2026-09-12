@@ -1,6 +1,10 @@
-{
+﻿{
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  "exclude": [
+    "src_old",
+    "node_modules"
+  ]
 }

@@ -1,224 +1,1352 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { collection, addDoc } from 'firebase/firestore';
-import { useWorkoutStore } from '../../store/workoutStore';
-import { useAuthStore } from '../../store/authStore';
-import { database } from '../../lib/database';
-import { analyzeWorkout } from '../../services/AIService';
+import React, {
+  useMemo,
+} from 'react';
 
-export default function AfterWorkoutScreen() {
-  const navigation = useNavigation<any>();
-  const { workoutName, exercises, exerciseLogs, startedAt, resetWorkout } = useWorkoutStore();
-  const { user } = useAuthStore();
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'pending' | 'synced' | 'failed'>('pending');
-  const [aiAnalysis, setAiAnalysis] = useState<string>('');
-  const [aiLoading, setAiLoading] = useState(false);
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-  const duration = startedAt
-    ? Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
-    : 0;
+import {
+  Ionicons,
+} from '@expo/vector-icons';
 
-  const totalSets = exerciseLogs.reduce((acc, e) => acc + e.sets.length, 0);
+import {
+  useWorkoutHistoryStore,
+} from '../../store/workoutHistoryStore';
 
-  useEffect(() => {
-    saveWorkout();
-    getAIAnalysis();
-  }, []);
+import {
+  compareSet,
+  formatRepDelta,
+  formatWeightDelta,
+} from '../../utils/progression';
 
-  const getAIAnalysis = async () => {
-    setAiLoading(true);
-    try {
-      const analysis = await analyzeWorkout({
-        workoutName,
-        durationSeconds: duration,
-        exercises: exerciseLogs.map(log => ({
-          exerciseName: log.exerciseName,
-          sets: log.sets.map(s => ({
-            setNumber: s.setNumber,
-            achievedReps: s.achievedReps,
-            weight: s.weight,
-          })),
-        })),
-      });
-      setAiAnalysis(analysis);
-    } catch (e) {
-      console.error('AI error:', e);
-      setAiAnalysis('Great workout! Keep pushing toward your goals!');
-    }
-    setAiLoading(false);
-  };
+import {
+  generateWorkoutInsight,
+} from '../../utils/workoutInsight';
 
-  const saveWorkout = async () => {
-    if (!user) return;
-    setSaving(true);
+function formatDuration(
+  seconds: number
+) {
+  const minutes =
+    Math.floor(
+      seconds / 60
+    );
 
-    try {
-      const sessionsCollection = database.get('workout_sessions');
-      const setLogsCollection = database.get('set_logs');
+  const remaining =
+    seconds % 60;
 
-      let localSessionId = '';
+  return `${minutes}:${remaining
+    .toString()
+    .padStart(2, '0')}`;
+}
 
-      await database.write(async () => {
-        const session = await sessionsCollection.create((record: any) => {
-          record.workoutId = 'manual';
-          record.workoutName = workoutName;
-          record.startedAt = startedAt ? new Date(startedAt).getTime() : Date.now();
-          record.endedAt = Date.now();
-          record.durationSeconds = duration;
-          record.wasCompleted = true;
-          record.syncStatus = 'pending';
-          record.firebaseId = '';
-        });
+export default function AfterWorkoutScreen({
+  navigation,
+  route,
+}: any) {
+  const sessionId =
+    route.params?.sessionId;
 
-        localSessionId = session.id;
+  const sessions =
+    useWorkoutHistoryStore(
+      (state) =>
+        state.sessions
+    );
 
-        for (const log of exerciseLogs) {
-          for (const s of log.sets) {
-            await setLogsCollection.create((record: any) => {
-              record.sessionId = session.id;
-              record.exerciseId = log.exerciseId || 'manual';
-              record.exerciseName = log.exerciseName;
-              record.setNumber = s.setNumber;
-              record.targetReps = (s as any).targetReps ?? 0;
-              record.achievedReps = s.achievedReps;
-              record.weight = s.weight;
-              record.completedAt = Date.now();
-              record.syncStatus = 'pending';
-            });
-          }
-        }
-      });
+  const session =
+    sessions.find(
+      (item) =>
+        item.id === sessionId
+    );
 
-      setSaved(true);
-      setSyncStatus('pending');
-
-      try {
-        const { db } = await import('../../config/firebase');
-        const docRef = await addDoc(collection(db, 'workoutSessions'), {
-          uid: user.uid,
-          workoutName,
-          exercises,
-          exerciseLogs,
-          startedAt,
-          endedAt: new Date().toISOString(),
-          durationSeconds: duration,
-          wasCompleted: true,
-        });
-
-        const session = await database.get('workout_sessions').find(localSessionId);
-        await database.write(async () => {
-          await (session as any).update((record: any) => {
-            record.syncStatus = 'synced';
-            record.firebaseId = docRef.id;
-          });
-        });
-
-        setSyncStatus('synced');
-      } catch (syncError) {
-        console.log('Firestore sync failed, will retry later:', syncError);
-        setSyncStatus('failed');
+  const previousSession =
+    useMemo(() => {
+      if (!session) {
+        return undefined;
       }
 
-    } catch (e) {
-      console.error('Save error:', e);
-    }
+      return sessions.find(
+        (item) =>
+          item.programId ===
+            session.programId &&
+          item.finishedAt <
+            session.finishedAt
+      );
+    }, [
+      session,
+      sessions,
+    ]);
 
-    setSaving(false);
-  };
+  const exerciseGroups =
+    useMemo(() => {
+      if (!session) {
+        return [];
+      }
 
-  const handleDone = () => {
-    resetWorkout();
-    navigation.reset({ index: 0, routes: [{ name: 'BeforeWorkout' }] });
-  };
+      const groups =
+        new Map<
+          string,
+          {
+            id: string;
+            name: string;
+            sets:
+              typeof session.completedSets;
+          }
+        >();
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}m ${sec}s`;
-  };
+      session.completedSets.forEach(
+        (set) => {
+          const existing =
+            groups.get(
+              set.exerciseId
+            );
 
-  return (
-    <View className="flex-1 bg-black">
-      <View className="px-6 pt-14 pb-4">
-        <Text className="text-green-400 text-lg">Workout Complete! 🎉</Text>
-        <Text className="text-white text-2xl font-bold">{workoutName}</Text>
-      </View>
+          if (existing) {
+            existing.sets.push(
+              set
+            );
 
-      <ScrollView className="flex-1 px-6">
-        {/* Summary */}
-        <View className="flex-row gap-3 mb-4">
-          <View className="flex-1 bg-gray-900 rounded-2xl p-4 items-center">
-            <Text className="text-green-400 text-xl font-bold">{formatTime(duration)}</Text>
-            <Text className="text-gray-400 text-xs mt-1">Duration</Text>
-          </View>
-          <View className="flex-1 bg-gray-900 rounded-2xl p-4 items-center">
-            <Text className="text-green-400 text-xl font-bold">{exercises.length}</Text>
-            <Text className="text-gray-400 text-xs mt-1">Exercises</Text>
-          </View>
-          <View className="flex-1 bg-gray-900 rounded-2xl p-4 items-center">
-            <Text className="text-green-400 text-xl font-bold">{totalSets}</Text>
-            <Text className="text-gray-400 text-xs mt-1">Sets Done</Text>
-          </View>
-        </View>
+            return;
+          }
 
-        {/* Save Status */}
-        <View className="bg-gray-900 rounded-2xl p-4 mb-4 flex-row items-center">
-          {saving ? (
-            <>
-              <ActivityIndicator size="small" color="#4ade80" />
-              <Text className="text-gray-400 ml-3">Saving workout...</Text>
-            </>
-          ) : saved ? (
-            syncStatus === 'synced' ? (
-              <Text className="text-green-400">✓ Saved locally + synced to cloud</Text>
-            ) : syncStatus === 'failed' ? (
-              <Text className="text-yellow-400">✓ Saved locally — will sync when online</Text>
-            ) : (
-              <Text className="text-blue-400">✓ Saved locally — syncing...</Text>
-            )
-          ) : (
-            <Text className="text-red-400">Failed to save</Text>
-          )}
-        </View>
+          groups.set(
+            set.exerciseId,
+            {
+              id:
+                set.exerciseId,
 
-        {/* AI Analysis */}
-        <View className="bg-gray-900 rounded-2xl p-4 mb-4">
-          <Text className="text-green-400 font-bold mb-2">🤖 AI Coach Feedback</Text>
-          {aiLoading ? (
-            <View className="flex-row items-center">
-              <ActivityIndicator size="small" color="#4ade80" />
-              <Text className="text-gray-400 ml-3">Analyzing your workout...</Text>
-            </View>
-          ) : (
-            <Text className="text-gray-300 text-sm leading-6">
-              {aiAnalysis || 'Generating feedback...'}
-            </Text>
-          )}
-        </View>
+              name:
+                set.exerciseName,
 
-        {/* Exercise Breakdown */}
-        <Text className="text-white font-bold mb-3">Exercise Breakdown</Text>
-        {exerciseLogs.map((log, i) => (
-          <View key={i} className="bg-gray-900 rounded-2xl p-4 mb-3">
-            <Text className="text-white font-bold mb-2">{log.exerciseName}</Text>
-            {log.sets.map((s, j) => (
-              <View key={j} className="flex-row justify-between py-1 border-b border-gray-800">
-                <Text className="text-gray-400">Set {s.setNumber}</Text>
-                <Text className="text-white">{s.achievedReps} reps @ {s.weight}kg</Text>
-              </View>
-            ))}
-          </View>
-        ))}
-      </ScrollView>
+              sets: [set],
+            }
+          );
+        }
+      );
 
-      <View className="px-6 pb-8 pt-2">
-        <TouchableOpacity onPress={handleDone} className="bg-green-500 rounded-2xl py-4 items-center">
-          <Text className="text-black font-bold text-lg">Done</Text>
+      return Array.from(
+        groups.values()
+      );
+    }, [session]);
+
+  const progression =
+    useMemo(() => {
+      if (
+        !session ||
+        !previousSession
+      ) {
+        return [];
+      }
+
+      return session.completedSets
+        .map((set) => {
+          const previousSet =
+            previousSession.completedSets.find(
+              (previous) =>
+                previous.exerciseId ===
+                  set.exerciseId &&
+                previous.setNumber ===
+                  set.setNumber
+            );
+
+          const comparison =
+            compareSet(
+              previousSet,
+              set.reps,
+              set.weight
+            );
+
+          if (
+            !comparison ||
+            !comparison.improved
+          ) {
+            return null;
+          }
+
+          return {
+            id:
+              set.id,
+
+            exerciseName:
+              set.exerciseName,
+
+            setNumber:
+              set.setNumber,
+
+            comparison,
+          };
+        })
+        .filter(
+          (
+            item
+          ): item is NonNullable<
+            typeof item
+          > =>
+            item !== null
+        );
+    }, [
+      session,
+      previousSession,
+    ]);
+
+  const insight =
+    useMemo(() => {
+      if (!session) {
+        return null;
+      }
+
+      return generateWorkoutInsight(
+        session,
+        previousSession
+      );
+    }, [
+      session,
+      previousSession,
+    ]);
+
+  if (!session) {
+    return (
+      <View
+        style={
+          styles.centered
+        }
+      >
+        <Text
+          style={
+            styles.errorTitle
+          }
+        >
+          Workout summary
+          unavailable
+        </Text>
+
+        <TouchableOpacity
+          style={
+            styles.doneButton
+          }
+          onPress={() =>
+            navigation.goBack()
+          }
+        >
+          <Text
+            style={
+              styles.doneButtonText
+            }
+          >
+            Go Back
+          </Text>
         </TouchableOpacity>
       </View>
+    );
+  }
+
+  const totalReps =
+    session.completedSets.reduce(
+      (
+        total,
+        set
+      ) =>
+        total +
+        set.reps,
+      0
+    );
+
+  const totalVolume =
+    session.completedSets.reduce(
+      (
+        total,
+        set
+      ) =>
+        total +
+        set.reps *
+          set.weight,
+      0
+    );
+
+  const improvedExercises =
+    new Set(
+      progression.map(
+        (item) =>
+          item.exerciseName
+      )
+    ).size;
+
+  const closeSummary =
+    () => {
+      navigation.goBack();
+    };
+
+  return (
+    <View style={styles.root}>
+      <ScrollView
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+      >
+        <View
+          style={
+            styles.successIcon
+          }
+        >
+          <Ionicons
+            name="checkmark"
+            size={38}
+            color="#050505"
+          />
+        </View>
+
+        <Text
+          style={
+            styles.eyebrow
+          }
+        >
+          WORKOUT COMPLETE
+        </Text>
+
+        <Text
+          style={styles.title}
+        >
+          {session.programName}
+        </Text>
+
+        <Text
+          style={styles.date}
+        >
+          {new Date(
+            session.finishedAt
+          ).toLocaleDateString(
+            undefined,
+            {
+              month:
+                'long',
+              day:
+                'numeric',
+              year:
+                'numeric',
+            }
+          )}
+        </Text>
+
+        <View
+          style={
+            styles.mainStats
+          }
+        >
+          <View
+            style={styles.stat}
+          >
+            <Text
+              style={
+                styles.statValue
+              }
+            >
+              {formatDuration(
+                session.durationSeconds
+              )}
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              DURATION
+            </Text>
+          </View>
+
+          <View
+            style={
+              styles.statDivider
+            }
+          />
+
+          <View
+            style={styles.stat}
+          >
+            <Text
+              style={
+                styles.statValue
+              }
+            >
+              {
+                session
+                  .completedSets
+                  .length
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              SETS
+            </Text>
+          </View>
+
+          <View
+            style={
+              styles.statDivider
+            }
+          />
+
+          <View
+            style={styles.stat}
+          >
+            <Text
+              style={
+                styles.statValue
+              }
+            >
+              {totalReps}
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              REPS
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={
+            styles.volumeCard
+          }
+        >
+          <View
+            style={
+              styles.volumeIcon
+            }
+          >
+            <Ionicons
+              name="barbell"
+              size={22}
+              color="#4ADE80"
+            />
+          </View>
+
+          <View>
+            <Text
+              style={
+                styles.volumeLabel
+              }
+            >
+              TOTAL VOLUME
+            </Text>
+
+            <Text
+              style={
+                styles.volumeValue
+              }
+            >
+              {totalVolume.toFixed(
+                1
+              )}{' '}
+              kg
+            </Text>
+          </View>
+        </View>
+
+        {insight ? (
+          <>
+            <Text
+              style={
+                styles.sectionTitle
+              }
+            >
+              Workout Insight
+            </Text>
+
+            <View
+              style={
+                styles.insightCard
+              }
+            >
+              <View
+                style={
+                  styles.insightIcon
+                }
+              >
+                <Ionicons
+                  name="sparkles"
+                  size={21}
+                  color="#4ADE80"
+                />
+              </View>
+
+              <View
+                style={
+                  styles.insightInfo
+                }
+              >
+                <Text
+                  style={
+                    styles.insightTitle
+                  }
+                >
+                  {
+                    insight.title
+                  }
+                </Text>
+
+                <Text
+                  style={
+                    styles.insightMessage
+                  }
+                >
+                  {
+                    insight.message
+                  }
+                </Text>
+              </View>
+            </View>
+          </>
+        ) : null}
+
+        <Text
+          style={
+            styles.sectionTitle
+          }
+        >
+          Progress
+        </Text>
+
+        {!previousSession ? (
+          <View
+            style={
+              styles.baselineCard
+            }
+          >
+            <Ionicons
+              name="sparkles-outline"
+              size={22}
+              color="#4ADE80"
+            />
+
+            <View
+              style={
+                styles.baselineTextArea
+              }
+            >
+              <Text
+                style={
+                  styles.baselineTitle
+                }
+              >
+                Baseline
+                established
+              </Text>
+
+              <Text
+                style={
+                  styles.baselineDescription
+                }
+              >
+                This workout becomes
+                the reference point
+                for your next
+                session.
+              </Text>
+            </View>
+          </View>
+        ) : progression.length >
+          0 ? (
+          <>
+            <View
+              style={
+                styles.progressSummary
+              }
+            >
+              <Ionicons
+                name="trending-up"
+                size={22}
+                color="#4ADE80"
+              />
+
+              <View
+                style={
+                  styles.progressSummaryText
+                }
+              >
+                <Text
+                  style={
+                    styles.progressSummaryTitle
+                  }
+                >
+                  Progress made
+                </Text>
+
+                <Text
+                  style={
+                    styles.progressSummaryDescription
+                  }
+                >
+                  Improved on{' '}
+                  {improvedExercises}{' '}
+                  {improvedExercises ===
+                  1
+                    ? 'exercise'
+                    : 'exercises'}{' '}
+                  compared with last
+                  time.
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={
+                styles.progressList
+              }
+            >
+              {progression
+                .slice(0, 5)
+                .map(
+                  (item) => (
+                    <View
+                      key={
+                        item.id
+                      }
+                      style={
+                        styles.progressRow
+                      }
+                    >
+                      <View
+                        style={
+                          styles.progressArrow
+                        }
+                      >
+                        <Ionicons
+                          name="trending-up"
+                          size={17}
+                          color="#4ADE80"
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.progressInfo
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.progressExercise
+                          }
+                        >
+                          {
+                            item.exerciseName
+                          }
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.progressSet
+                          }
+                        >
+                          Set{' '}
+                          {
+                            item.setNumber
+                          }
+                        </Text>
+                      </View>
+
+                      <View
+                        style={
+                          styles.progressDelta
+                        }
+                      >
+                        {item
+                          .comparison
+                          .weightDelta !==
+                        0 ? (
+                          <Text
+                            style={
+                              styles.progressDeltaText
+                            }
+                          >
+                            {formatWeightDelta(
+                              item
+                                .comparison
+                                .weightDelta
+                            )}
+                          </Text>
+                        ) : null}
+
+                        {item
+                          .comparison
+                          .repsDelta !==
+                        0 ? (
+                          <Text
+                            style={
+                              styles.progressDeltaText
+                            }
+                          >
+                            {formatRepDelta(
+                              item
+                                .comparison
+                                .repsDelta
+                            )}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  )
+                )}
+            </View>
+          </>
+        ) : (
+          <View
+            style={
+              styles.matchedCard
+            }
+          >
+            <Ionicons
+              name="remove"
+              size={22}
+              color="#A1A1AA"
+            />
+
+            <View
+              style={
+                styles.baselineTextArea
+              }
+            >
+              <Text
+                style={
+                  styles.baselineTitle
+                }
+              >
+                Solid session
+              </Text>
+
+              <Text
+                style={
+                  styles.baselineDescription
+                }
+              >
+                No clear increases
+                over the previous
+                session.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        <Text
+          style={
+            styles.sectionTitle
+          }
+        >
+          Exercises
+        </Text>
+
+        <View
+          style={
+            styles.exerciseList
+          }
+        >
+          {exerciseGroups.map(
+            (
+              exercise,
+              index
+            ) => (
+              <View
+                key={
+                  exercise.id
+                }
+                style={
+                  styles.exerciseCard
+                }
+              >
+                <View
+                  style={
+                    styles.exerciseHeader
+                  }
+                >
+                  <View
+                    style={
+                      styles.exerciseNumber
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.exerciseNumberText
+                      }
+                    >
+                      {index + 1}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.exerciseName
+                    }
+                  >
+                    {exercise.name}
+                  </Text>
+                </View>
+
+                {exercise.sets.map(
+                  (set) => {
+                    const previousSet =
+                      previousSession?.completedSets.find(
+                        (
+                          previous
+                        ) =>
+                          previous.exerciseId ===
+                            set.exerciseId &&
+                          previous.setNumber ===
+                            set.setNumber
+                      );
+
+                    const comparison =
+                      compareSet(
+                        previousSet,
+                        set.reps,
+                        set.weight
+                      );
+
+                    return (
+                      <View
+                        key={set.id}
+                        style={
+                          styles.setRow
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.setNumber
+                          }
+                        >
+                          SET{' '}
+                          {
+                            set.setNumber
+                          }
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.setPerformance
+                          }
+                        >
+                          {set.reps} reps
+                          {' × '}
+                          {set.weight.toFixed(
+                            1
+                          )}{' '}
+                          kg
+                        </Text>
+
+                        {comparison?.improved ? (
+                          <Ionicons
+                            name="arrow-up"
+                            size={15}
+                            color="#4ADE80"
+                          />
+                        ) : comparison?.declined ? (
+                          <Ionicons
+                            name="arrow-down"
+                            size={15}
+                            color="#F87171"
+                          />
+                        ) : (
+                          <Ionicons
+                            name="remove"
+                            size={15}
+                            color="#52525B"
+                          />
+                        )}
+                      </View>
+                    );
+                  }
+                )}
+              </View>
+            )
+          )}
+        </View>
+
+        <View
+          style={
+            styles.savedCard
+          }
+        >
+          <Ionicons
+            name="checkmark-circle"
+            size={21}
+            color="#4ADE80"
+          />
+
+          <Text
+            style={
+              styles.savedText
+            }
+          >
+            Saved locally and ready
+            for your next progression
+            comparison.
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={
+            styles.doneButton
+          }
+          onPress={
+            closeSummary
+          }
+          activeOpacity={0.85}
+        >
+          <Text
+            style={
+              styles.doneButtonText
+            }
+          >
+            Done
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
+
+const styles =
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor:
+        '#050505',
+    },
+
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 70,
+      paddingBottom: 50,
+      alignItems: 'center',
+    },
+
+    centered: {
+      flex: 1,
+      backgroundColor:
+        '#050505',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+
+    errorTitle: {
+      color: '#F9FAFB',
+      fontSize: 19,
+      fontWeight: '800',
+    },
+
+    successIcon: {
+      width: 76,
+      height: 76,
+      borderRadius: 38,
+      backgroundColor:
+        '#4ADE80',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    eyebrow: {
+      color: '#4ADE80',
+      fontSize: 9,
+      fontWeight: '900',
+      letterSpacing: 1.5,
+      marginTop: 22,
+    },
+
+    title: {
+      color: '#F9FAFB',
+      fontSize: 30,
+      fontWeight: '900',
+      textAlign: 'center',
+      marginTop: 7,
+    },
+
+    date: {
+      color: '#71717A',
+      fontSize: 11,
+      marginTop: 6,
+    },
+
+    mainStats: {
+      width: '100%',
+      backgroundColor:
+        '#111827',
+      borderWidth: 1,
+      borderColor:
+        '#1F2937',
+      borderRadius: 20,
+      flexDirection: 'row',
+      paddingVertical: 19,
+      marginTop: 28,
+    },
+
+    stat: {
+      flex: 1,
+      alignItems: 'center',
+    },
+
+    statDivider: {
+      width: 1,
+      backgroundColor:
+        '#27272A',
+    },
+
+    statValue: {
+      color: '#F9FAFB',
+      fontSize: 19,
+      fontWeight: '900',
+    },
+
+    statLabel: {
+      color: '#52525B',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 0.8,
+      marginTop: 4,
+    },
+
+    volumeCard: {
+      width: '100%',
+      minHeight: 72,
+      backgroundColor:
+        '#052E16',
+      borderWidth: 1,
+      borderColor:
+        '#166534',
+      borderRadius: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      marginTop: 12,
+    },
+
+    volumeIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor:
+        '#064E3B',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+
+    volumeLabel: {
+      color: '#71717A',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+
+    volumeValue: {
+      color: '#F9FAFB',
+      fontSize: 19,
+      fontWeight: '900',
+      marginTop: 3,
+    },
+
+    sectionTitle: {
+      width: '100%',
+      color: '#F9FAFB',
+      fontSize: 18,
+      fontWeight: '800',
+      marginTop: 27,
+      marginBottom: 12,
+    },
+
+    insightCard: {
+      width: '100%',
+      backgroundColor:
+        '#0B0B0C',
+      borderWidth: 1,
+      borderColor:
+        '#166534',
+      borderRadius: 18,
+      padding: 16,
+      flexDirection: 'row',
+    },
+
+    insightIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor:
+        '#052E16',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+
+    insightInfo: {
+      flex: 1,
+    },
+
+    insightTitle: {
+      color: '#4ADE80',
+      fontSize: 13,
+      fontWeight: '900',
+    },
+
+    insightMessage: {
+      color: '#A1A1AA',
+      fontSize: 11,
+      lineHeight: 17,
+      marginTop: 5,
+    },
+
+    baselineCard: {
+      width: '100%',
+      backgroundColor:
+        '#052E16',
+      borderWidth: 1,
+      borderColor:
+        '#166534',
+      borderRadius: 17,
+      padding: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    matchedCard: {
+      width: '100%',
+      backgroundColor:
+        '#111827',
+      borderWidth: 1,
+      borderColor:
+        '#1F2937',
+      borderRadius: 17,
+      padding: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    baselineTextArea: {
+      flex: 1,
+      marginLeft: 11,
+    },
+
+    baselineTitle: {
+      color: '#F9FAFB',
+      fontSize: 12,
+      fontWeight: '800',
+    },
+
+    baselineDescription: {
+      color: '#71717A',
+      fontSize: 10,
+      lineHeight: 15,
+      marginTop: 3,
+    },
+
+    progressSummary: {
+      width: '100%',
+      backgroundColor:
+        '#052E16',
+      borderWidth: 1,
+      borderColor:
+        '#166534',
+      borderRadius: 17,
+      padding: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    progressSummaryText: {
+      flex: 1,
+      marginLeft: 11,
+    },
+
+    progressSummaryTitle: {
+      color: '#4ADE80',
+      fontSize: 12,
+      fontWeight: '900',
+    },
+
+    progressSummaryDescription: {
+      color: '#A1A1AA',
+      fontSize: 10,
+      lineHeight: 15,
+      marginTop: 3,
+    },
+
+    progressList: {
+      width: '100%',
+      gap: 7,
+      marginTop: 9,
+    },
+
+    progressRow: {
+      minHeight: 58,
+      backgroundColor:
+        '#111827',
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor:
+        '#1F2937',
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 13,
+    },
+
+    progressArrow: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor:
+        '#052E16',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
+
+    progressInfo: {
+      flex: 1,
+    },
+
+    progressExercise: {
+      color: '#F9FAFB',
+      fontSize: 11,
+      fontWeight: '800',
+    },
+
+    progressSet: {
+      color: '#52525B',
+      fontSize: 9,
+      marginTop: 2,
+    },
+
+    progressDelta: {
+      alignItems: 'flex-end',
+      gap: 2,
+    },
+
+    progressDeltaText: {
+      color: '#4ADE80',
+      fontSize: 9,
+      fontWeight: '800',
+    },
+
+    exerciseList: {
+      width: '100%',
+      gap: 12,
+    },
+
+    exerciseCard: {
+      backgroundColor:
+        '#111827',
+      borderWidth: 1,
+      borderColor:
+        '#1F2937',
+      borderRadius: 18,
+      overflow: 'hidden',
+    },
+
+    exerciseHeader: {
+      minHeight: 59,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+    },
+
+    exerciseNumber: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor:
+        '#052E16',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
+
+    exerciseNumberText: {
+      color: '#4ADE80',
+      fontSize: 12,
+      fontWeight: '900',
+    },
+
+    exerciseName: {
+      flex: 1,
+      color: '#F9FAFB',
+      fontSize: 14,
+      fontWeight: '800',
+    },
+
+    setRow: {
+      minHeight: 50,
+      borderTopWidth: 1,
+      borderTopColor:
+        '#1F2937',
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+    },
+
+    setNumber: {
+      width: 50,
+      color: '#52525B',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 0.8,
+    },
+
+    setPerformance: {
+      flex: 1,
+      color: '#D4D4D8',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+
+    savedCard: {
+      width: '100%',
+      minHeight: 57,
+      backgroundColor:
+        '#0B0B0C',
+      borderWidth: 1,
+      borderColor:
+        '#1F2937',
+      borderRadius: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      marginTop: 24,
+    },
+
+    savedText: {
+      flex: 1,
+      color: '#71717A',
+      fontSize: 10,
+      lineHeight: 15,
+      marginLeft: 9,
+    },
+
+    doneButton: {
+      width: '100%',
+      minHeight: 57,
+      backgroundColor:
+        '#4ADE80',
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 14,
+    },
+
+    doneButtonText: {
+      color: '#050505',
+      fontSize: 16,
+      fontWeight: '900',
+    },
+  });
