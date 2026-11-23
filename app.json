@@ -22,7 +22,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.nomosfit.app"
+      "package": "com.nomosfit.app",
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -30,6 +31,7 @@
     "plugins": [
       "expo-asset",
       "expo-font"
-    ]
+    ],
+    "newArchEnabled": false
   }
 }
