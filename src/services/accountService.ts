@@ -1,3 +1,4 @@
+import { clearProgramDesignSettingsForUser } from '../redesign/preferences';
 import {
   EmailAuthProvider,
   deleteUser,
@@ -698,6 +699,7 @@ async function clearLocalAccountData(
       clearWorkoutHistoryForUser(
         uid
       ),
+      clearProgramDesignSettingsForUser(uid),
     ]);
 
   results.forEach(

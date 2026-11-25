@@ -1,0 +1,9 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NavigatorScreenParams } from '@react-navigation/native';
+export type ProgramRoutes = { ProgramsList: undefined; ProgramEditor: { programId?: string } | undefined };
+export type HistoryRoutes = { HistoryList: undefined; ProgramHistory: { programId: string }; SessionDetail: { sessionId: string } };
+export type Tabs = { Home: undefined; Programs: NavigatorScreenParams<ProgramRoutes>; History: NavigatorScreenParams<HistoryRoutes>; Team: undefined; Profile: undefined };
+export type RootRoutes = { Main: NavigatorScreenParams<Tabs> | undefined; Workout: { programId: string }; AfterWorkout: { sessionId: string }; Auth: undefined };
+export type RootProps<T extends keyof RootRoutes> = NativeStackScreenProps<RootRoutes,T>;
+export type ProgramProps<T extends keyof ProgramRoutes> = NativeStackScreenProps<ProgramRoutes,T>;
+export type HistoryProps<T extends keyof HistoryRoutes> = NativeStackScreenProps<HistoryRoutes,T>;

@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './src/providers/AuthProvider';
-import RootNavigator from './src/navigation/RootNavigator';
+import RootNavigator from './src/redesign/Navigation';
 
 export default function App() {
   return (

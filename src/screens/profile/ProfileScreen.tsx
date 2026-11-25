@@ -1,3 +1,8 @@
+// nomosfit-progress-profile-v1
+import { T as NoMoSProfileText } from '../../redesign/ui';
+import { colors as noMoSColors, fonts as noMoSFonts } from '../../redesign/tokens';
+import { GoogleAccountCard as NoMoSGoogleAccountCard } from '../../redesign/GoogleAccountCard';
+import { AppBackground as NoMoSBackground } from '../../redesign/ui';
 import React, {
   useCallback,
   useMemo,
@@ -968,7 +973,7 @@ export default function ProfileScreen() {
     };
 
   return (
-    <View
+    <NoMoSBackground
       style={
         styles.root
       }
@@ -982,13 +987,13 @@ export default function ProfileScreen() {
         }
         keyboardShouldPersistTaps="handled"
       >
-        <Text
+        <NoMoSProfileText
           style={
             styles.pageTitle
           }
         >
           Profile
-        </Text>
+        </NoMoSProfileText>
 
         <View
           style={
@@ -1000,13 +1005,13 @@ export default function ProfileScreen() {
               styles.avatar
             }
           >
-            <Text
+            <NoMoSProfileText
               style={
                 styles.avatarText
               }
             >
               {initial}
-            </Text>
+            </NoMoSProfileText>
           </View>
 
           <View
@@ -1014,15 +1019,15 @@ export default function ProfileScreen() {
               styles.profileInfo
             }
           >
-            <Text
+            <NoMoSProfileText
               style={
                 styles.name
               }
             >
               {shownName}
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.email
               }
@@ -1032,7 +1037,7 @@ export default function ProfileScreen() {
             >
               {accountEmail ||
                 'No email'}
-            </Text>
+            </NoMoSProfileText>
 
             <View
               style={
@@ -1053,7 +1058,7 @@ export default function ProfileScreen() {
                 }
               />
 
-              <Text
+              <NoMoSProfileText
                 style={[
                   styles.verificationInlineText,
 
@@ -1065,7 +1070,7 @@ export default function ProfileScreen() {
                 {emailVerified
                   ? 'Verified'
                   : 'Email not verified'}
-              </Text>
+              </NoMoSProfileText>
             </View>
           </View>
         </View>
@@ -1076,20 +1081,20 @@ export default function ProfileScreen() {
           }
         >
           <View>
-            <Text
+            <NoMoSProfileText
               style={
                 styles.weekLabel
               }
             >
               THIS WEEK
-            </Text>
+            </NoMoSProfileText>
 
             <View
               style={
                 styles.weekValueRow
               }
             >
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.weekValue
                 }
@@ -1097,9 +1102,9 @@ export default function ProfileScreen() {
                 {
                   stats.workoutsThisWeek
                 }
-              </Text>
+              </NoMoSProfileText>
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.weekUnit
                 }
@@ -1108,7 +1113,7 @@ export default function ProfileScreen() {
                 1
                   ? 'workout'
                   : 'workouts'}
-              </Text>
+              </NoMoSProfileText>
             </View>
           </View>
 
@@ -1125,13 +1130,13 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Text
+        <NoMoSProfileText
           style={
             styles.sectionTitle
           }
         >
           All Time
-        </Text>
+        </NoMoSProfileText>
 
         <View
           style={
@@ -1149,7 +1154,7 @@ export default function ProfileScreen() {
               color="#4ADE80"
             />
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statValue
               }
@@ -1157,15 +1162,15 @@ export default function ProfileScreen() {
               {
                 stats.totalWorkouts
               }
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statLabel
               }
             >
               WORKOUTS
-            </Text>
+            </NoMoSProfileText>
           </View>
 
           <View
@@ -1179,7 +1184,7 @@ export default function ProfileScreen() {
               color="#4ADE80"
             />
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statValue
               }
@@ -1187,15 +1192,15 @@ export default function ProfileScreen() {
               {
                 stats.totalSets
               }
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statLabel
               }
             >
               SETS
-            </Text>
+            </NoMoSProfileText>
           </View>
 
           <View
@@ -1209,7 +1214,7 @@ export default function ProfileScreen() {
               color="#4ADE80"
             />
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statValue
               }
@@ -1217,15 +1222,15 @@ export default function ProfileScreen() {
               {
                 stats.totalReps
               }
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statLabel
               }
             >
               REPS
-            </Text>
+            </NoMoSProfileText>
           </View>
 
           <View
@@ -1239,7 +1244,7 @@ export default function ProfileScreen() {
               color="#4ADE80"
             />
 
-            <Text
+            <NoMoSProfileText
               style={[
                 styles.statValue,
                 styles.smallStatValue,
@@ -1251,15 +1256,15 @@ export default function ProfileScreen() {
               {formatNumber(
                 stats.totalVolume
               )}
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.statLabel
               }
             >
               KG VOLUME
-            </Text>
+            </NoMoSProfileText>
           </View>
         </View>
 
@@ -1273,7 +1278,7 @@ export default function ProfileScreen() {
               styles.secondaryStat
             }
           >
-            <Text
+            <NoMoSProfileText
               style={
                 styles.secondaryValue
               }
@@ -1281,15 +1286,15 @@ export default function ProfileScreen() {
               {
                 stats.uniqueExercises
               }
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.secondaryLabel
               }
             >
               Exercises trained
-            </Text>
+            </NoMoSProfileText>
           </View>
 
           <View
@@ -1303,7 +1308,7 @@ export default function ProfileScreen() {
               styles.secondaryStat
             }
           >
-            <Text
+            <NoMoSProfileText
               style={
                 styles.secondaryValue
               }
@@ -1311,27 +1316,27 @@ export default function ProfileScreen() {
               {formatDuration(
                 stats.totalSeconds
               )}
-            </Text>
+            </NoMoSProfileText>
 
-            <Text
+            <NoMoSProfileText
               style={
                 styles.secondaryLabel
               }
             >
               Training time
-            </Text>
+            </NoMoSProfileText>
           </View>
         </View>
 
         {latestSession ? (
           <>
-            <Text
+            <NoMoSProfileText
               style={
                 styles.sectionTitle
               }
             >
               Recent Workout
-            </Text>
+            </NoMoSProfileText>
 
             <View
               style={
@@ -1355,7 +1360,7 @@ export default function ProfileScreen() {
                   styles.recentInfo
                 }
               >
-                <Text
+                <NoMoSProfileText
                   style={
                     styles.recentName
                   }
@@ -1366,9 +1371,9 @@ export default function ProfileScreen() {
                   {
                     latestSession.programName
                   }
-                </Text>
+                </NoMoSProfileText>
 
-                <Text
+                <NoMoSProfileText
                   style={
                     styles.recentMeta
                   }
@@ -1383,19 +1388,19 @@ export default function ProfileScreen() {
                   {formatDuration(
                     latestSession.durationSeconds
                   )}
-                </Text>
+                </NoMoSProfileText>
               </View>
             </View>
           </>
         ) : null}
 
-        <Text
+        <NoMoSProfileText
           style={
             styles.sectionTitle
           }
         >
           Account Settings
-        </Text>
+        </NoMoSProfileText>
 
         {/*
          * =================================
@@ -1429,22 +1434,22 @@ export default function ProfileScreen() {
                 styles.settingHeaderText
               }
             >
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingTitle
                 }
               >
                 Display Name
-              </Text>
+              </NoMoSProfileText>
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingDescription
                 }
               >
                 Used across NoMoSFit
                 and your Team roster.
-              </Text>
+              </NoMoSProfileText>
             </View>
           </View>
 
@@ -1479,13 +1484,13 @@ export default function ProfileScreen() {
                 color="#050505"
               />
             ) : (
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.saveButtonText
                 }
               >
                 Save Name
-              </Text>
+              </NoMoSProfileText>
             )}
           </TouchableOpacity>
         </View>
@@ -1533,15 +1538,15 @@ export default function ProfileScreen() {
                 styles.settingHeaderText
               }
             >
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingTitle
                 }
               >
                 Email
-              </Text>
+              </NoMoSProfileText>
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingEmail
                 }
@@ -1551,7 +1556,7 @@ export default function ProfileScreen() {
               >
                 {accountEmail ||
                   'No email'}
-              </Text>
+              </NoMoSProfileText>
             </View>
           </View>
 
@@ -1576,7 +1581,7 @@ export default function ProfileScreen() {
               }
             />
 
-            <Text
+            <NoMoSProfileText
               style={
                 emailVerified
                   ? styles.statusVerifiedText
@@ -1586,7 +1591,7 @@ export default function ProfileScreen() {
               {emailVerified
                 ? 'Email verified'
                 : 'Email verification required'}
-            </Text>
+            </NoMoSProfileText>
           </View>
 
           {!emailVerified ? (
@@ -1613,13 +1618,13 @@ export default function ProfileScreen() {
                     color="#4ADE80"
                   />
 
-                  <Text
+                  <NoMoSProfileText
                     style={
                       styles.outlineButtonText
                     }
                   >
                     Send Verification Email
-                  </Text>
+                  </NoMoSProfileText>
                 </>
               )}
             </TouchableOpacity>
@@ -1649,13 +1654,13 @@ export default function ProfileScreen() {
                   color="#71717A"
                 />
 
-                <Text
+                <NoMoSProfileText
                   style={
                     styles.textActionText
                   }
                 >
                   Refresh Status
-                </Text>
+                </NoMoSProfileText>
               </>
             )}
           </TouchableOpacity>
@@ -1681,7 +1686,7 @@ export default function ProfileScreen() {
                   color="#4ADE80"
                 />
 
-                <Text
+                <NoMoSProfileText
                   style={
                     styles.outlineButtonText
                   }
@@ -1689,7 +1694,7 @@ export default function ProfileScreen() {
                   {showEmailForm
                     ? 'Cancel Email Change'
                     : 'Change Email'}
-                </Text>
+                </NoMoSProfileText>
               </TouchableOpacity>
 
               {showEmailForm ? (
@@ -1749,13 +1754,13 @@ export default function ProfileScreen() {
                         color="#050505"
                       />
                     ) : (
-                      <Text
+                      <NoMoSProfileText
                         style={
                           styles.saveButtonText
                         }
                       >
                         Verify New Email
-                      </Text>
+                      </NoMoSProfileText>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1769,13 +1774,13 @@ export default function ProfileScreen() {
          * SECURITY
          * =================================
          */}
-        <Text
+        <NoMoSProfileText
           style={
             styles.sectionTitle
           }
         >
           Security
-        </Text>
+        </NoMoSProfileText>
 
         <View
           style={
@@ -1804,22 +1809,22 @@ export default function ProfileScreen() {
                 styles.settingHeaderText
               }
             >
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingTitle
                 }
               >
                 Password
-              </Text>
+              </NoMoSProfileText>
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingDescription
                 }
               >
                 Keep your account
                 credentials secure.
-              </Text>
+              </NoMoSProfileText>
             </View>
           </View>
 
@@ -1844,7 +1849,7 @@ export default function ProfileScreen() {
                   color="#4ADE80"
                 />
 
-                <Text
+                <NoMoSProfileText
                   style={
                     styles.outlineButtonText
                   }
@@ -1852,7 +1857,7 @@ export default function ProfileScreen() {
                   {showPasswordForm
                     ? 'Cancel Password Change'
                     : 'Change Password'}
-                </Text>
+                </NoMoSProfileText>
               </TouchableOpacity>
 
               {showPasswordForm ? (
@@ -1925,13 +1930,13 @@ export default function ProfileScreen() {
                         color="#050505"
                       />
                     ) : (
-                      <Text
+                      <NoMoSProfileText
                         style={
                           styles.saveButtonText
                         }
                       >
                         Update Password
-                      </Text>
+                      </NoMoSProfileText>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1961,13 +1966,13 @@ export default function ProfileScreen() {
                       color="#71717A"
                     />
 
-                    <Text
+                    <NoMoSProfileText
                       style={
                         styles.textActionText
                       }
                     >
                       Send Password Reset Email
-                    </Text>
+                    </NoMoSProfileText>
                   </>
                 )}
               </TouchableOpacity>
@@ -1984,7 +1989,7 @@ export default function ProfileScreen() {
                 color="#A1A1AA"
               />
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.providerNoticeText
                 }
@@ -1993,7 +1998,7 @@ export default function ProfileScreen() {
                 is handled by your
                 external sign-in
                 provider.
-              </Text>
+              </NoMoSProfileText>
             </View>
           )}
         </View>
@@ -2003,13 +2008,13 @@ export default function ProfileScreen() {
          * DANGER ZONE
          * =================================
          */}
-        <Text
+        <NoMoSProfileText
           style={
             styles.sectionTitle
           }
         >
           Danger Zone
-        </Text>
+        </NoMoSProfileText>
 
         <View
           style={
@@ -2038,15 +2043,15 @@ export default function ProfileScreen() {
                 styles.settingHeaderText
               }
             >
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.dangerTitle
                 }
               >
                 Delete Account
-              </Text>
+              </NoMoSProfileText>
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.settingDescription
                 }
@@ -2054,7 +2059,7 @@ export default function ProfileScreen() {
                 Permanently remove
                 your NoMoSFit account
                 and associated data.
-              </Text>
+              </NoMoSProfileText>
             </View>
           </View>
 
@@ -2077,13 +2082,13 @@ export default function ProfileScreen() {
                     color="#F87171"
                   />
 
-                  <Text
+                  <NoMoSProfileText
                     style={
                       styles.deleteButtonText
                     }
                   >
                     Delete Account
-                  </Text>
+                  </NoMoSProfileText>
                 </TouchableOpacity>
               ) : (
                 <View
@@ -2091,7 +2096,7 @@ export default function ProfileScreen() {
                     styles.deleteForm
                   }
                 >
-                  <Text
+                  <NoMoSProfileText
                     style={
                       styles.deleteWarning
                     }
@@ -2102,7 +2107,7 @@ export default function ProfileScreen() {
                     Team and its shared
                     activity will also
                     be deleted.
-                  </Text>
+                  </NoMoSProfileText>
 
                   <TextInput
                     value={
@@ -2154,13 +2159,13 @@ export default function ProfileScreen() {
                         color="#FFFFFF"
                       />
                     ) : (
-                      <Text
+                      <NoMoSProfileText
                         style={
                           styles.confirmDeleteText
                         }
                       >
                         Permanently Delete
-                      </Text>
+                      </NoMoSProfileText>
                     )}
                   </TouchableOpacity>
 
@@ -2182,13 +2187,13 @@ export default function ProfileScreen() {
                       );
                     }}
                   >
-                    <Text
+                    <NoMoSProfileText
                       style={
                         styles.textActionText
                       }
                     >
                       Cancel
-                    </Text>
+                    </NoMoSProfileText>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2205,7 +2210,7 @@ export default function ProfileScreen() {
                 color="#A1A1AA"
               />
 
-              <Text
+              <NoMoSProfileText
                 style={
                   styles.providerNoticeText
                 }
@@ -2215,7 +2220,7 @@ export default function ProfileScreen() {
                 will be added with
                 provider-specific
                 reauthentication.
-              </Text>
+              </NoMoSProfileText>
             </View>
           )}
         </View>
@@ -2237,24 +2242,25 @@ export default function ProfileScreen() {
             color="#F87171"
           />
 
-          <Text
+          <NoMoSProfileText
             style={
               styles.signOutText
             }
           >
             Sign Out
-          </Text>
+          </NoMoSProfileText>
         </TouchableOpacity>
 
-        <Text
+        <NoMoSProfileText
           style={
             styles.versionText
           }
         >
           NoMoSFit
-        </Text>
-      </ScrollView>
-    </View>
+        </NoMoSProfileText>
+      <NoMoSGoogleAccountCard />
+</ScrollView>
+    </NoMoSBackground>
   );
 }
 
@@ -2273,6 +2279,7 @@ const styles =
     },
 
     pageTitle: {
+      fontFamily: noMoSFonts.heading,
       color: '#F9FAFB',
       fontSize: 28,
       fontWeight: '800',
@@ -2298,7 +2305,7 @@ const styles =
     },
 
     avatarText: {
-      color: '#4ADE80',
+      color: noMoSColors.green,
       fontSize: 26,
       fontWeight: '900',
     },
@@ -2317,7 +2324,7 @@ const styles =
     },
 
     email: {
-      color: '#71717A',
+      color: noMoSColors.muted,
       fontSize: 12,
       marginTop: 4,
     },
@@ -2335,7 +2342,7 @@ const styles =
     },
 
     verifiedText: {
-      color: '#4ADE80',
+      color: noMoSColors.green,
     },
 
     unverifiedText: {
@@ -2359,7 +2366,7 @@ const styles =
     },
 
     weekLabel: {
-      color: '#4ADE80',
+      color: noMoSColors.green,
       fontSize: 9,
       fontWeight: '900',
       letterSpacing: 1.2,
@@ -2395,6 +2402,7 @@ const styles =
     },
 
     sectionTitle: {
+      fontFamily: noMoSFonts.heading,
       color: '#F9FAFB',
       fontSize: 18,
       fontWeight: '800',
@@ -2412,9 +2420,9 @@ const styles =
       width: '48%',
       minHeight: 116,
       backgroundColor:
-        '#111827',
+        noMoSColors.panel,
       borderColor:
-        '#1F2937',
+        noMoSColors.border,
       borderWidth: 1,
       borderRadius: 18,
       padding: 15,
@@ -2432,7 +2440,7 @@ const styles =
     },
 
     statLabel: {
-      color: '#52525B',
+      color: noMoSColors.muted,
       fontSize: 8,
       fontWeight: '900',
       letterSpacing: 0.9,
@@ -2469,7 +2477,7 @@ const styles =
     },
 
     secondaryLabel: {
-      color: '#52525B',
+      color: noMoSColors.muted,
       fontSize: 9,
       marginTop: 4,
     },
@@ -2477,10 +2485,10 @@ const styles =
     recentCard: {
       minHeight: 68,
       backgroundColor:
-        '#111827',
+        noMoSColors.panel,
       borderWidth: 1,
       borderColor:
-        '#1F2937',
+        noMoSColors.border,
       borderRadius: 17,
       flexDirection: 'row',
       alignItems: 'center',
@@ -2509,16 +2517,16 @@ const styles =
     },
 
     recentMeta: {
-      color: '#52525B',
+      color: noMoSColors.muted,
       fontSize: 10,
       marginTop: 3,
     },
 
     settingsCard: {
       backgroundColor:
-        '#111827',
+        noMoSColors.panel,
       borderColor:
-        '#1F2937',
+        noMoSColors.border,
       borderWidth: 1,
       borderRadius: 19,
       padding: 16,
@@ -2552,13 +2560,14 @@ const styles =
     },
 
     settingTitle: {
+      fontFamily: noMoSFonts.heading,
       color: '#F9FAFB',
       fontSize: 13,
       fontWeight: '800',
     },
 
     settingDescription: {
-      color: '#71717A',
+      color: noMoSColors.muted,
       fontSize: 10,
       lineHeight: 15,
       marginTop: 3,
@@ -2587,7 +2596,7 @@ const styles =
     saveButton: {
       minHeight: 50,
       backgroundColor:
-        '#4ADE80',
+        noMoSColors.green,
       borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
@@ -2625,7 +2634,7 @@ const styles =
     },
 
     statusVerifiedText: {
-      color: '#4ADE80',
+      color: noMoSColors.green,
       fontSize: 10,
       fontWeight: '800',
     },
@@ -2652,7 +2661,7 @@ const styles =
     },
 
     outlineButtonText: {
-      color: '#4ADE80',
+      color: noMoSColors.green,
       fontSize: 11,
       fontWeight: '800',
     },
@@ -2667,7 +2676,7 @@ const styles =
     },
 
     textActionText: {
-      color: '#71717A',
+      color: noMoSColors.muted,
       fontSize: 10,
       fontWeight: '700',
     },
@@ -2689,7 +2698,7 @@ const styles =
 
     providerNoticeText: {
       flex: 1,
-      color: '#71717A',
+      color: noMoSColors.muted,
       fontSize: 10,
       lineHeight: 15,
       marginLeft: 9,
@@ -2717,6 +2726,7 @@ const styles =
     },
 
     dangerTitle: {
+      fontFamily: noMoSFonts.heading,
       color: '#F87171',
       fontSize: 13,
       fontWeight: '900',

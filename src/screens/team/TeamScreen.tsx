@@ -1,3 +1,4 @@
+import { AppBackground as NoMoSBackground } from '../../redesign/ui';
 import React, {
   useCallback,
   useMemo,
@@ -485,7 +486,7 @@ export default function TeamScreen() {
     !hasLoaded
   ) {
     return (
-      <View
+      <NoMoSBackground
         style={
           styles.loadingRoot
         }
@@ -502,7 +503,7 @@ export default function TeamScreen() {
         >
           Loading team...
         </Text>
-      </View>
+      </NoMoSBackground>
     );
   }
 
@@ -514,7 +515,7 @@ export default function TeamScreen() {
 
   if (!team) {
     return (
-      <View
+      <NoMoSBackground
         style={
           styles.root
         }
@@ -823,7 +824,7 @@ export default function TeamScreen() {
             </View>
           ) : null}
         </ScrollView>
-      </View>
+      </NoMoSBackground>
     );
   }
 
@@ -832,7 +833,7 @@ export default function TeamScreen() {
     user?.uid;
 
   return (
-    <View
+    <NoMoSBackground
       style={
         styles.root
       }
@@ -1791,7 +1792,7 @@ export default function TeamScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-    </View>
+    </NoMoSBackground>
   );
 }
 
