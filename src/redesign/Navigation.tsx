@@ -13,7 +13,7 @@ import { useProgramStore } from '../store/programStore';
 import { useWorkoutHistoryStore } from '../store/workoutHistoryStore';
 import { useWorkoutStore } from '../store/workoutStore';
 import TeamScreen from './team/TeamScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+import { AccountSettingsScreen, ProfileScreen } from './Profile';
 import AuthFlow from './Auth';
 import { HomeScreen, ProgramEditor, ProgramsScreen } from './Programs';
 import { HistoryScreen, ProgramHistoryScreen, SessionDetailScreen } from './History';
@@ -22,15 +22,17 @@ import { LoadingScreen } from './ui';
 import { colors, fonts } from './tokens';
 import { useProgramSettings } from './preferences';
 import { useWorkoutPresentation } from './startWorkout';
-import type { HistoryRoutes, ProgramRoutes, RootRoutes, Tabs } from './routes';
+import type { HistoryRoutes, ProfileRoutes, ProgramRoutes, RootRoutes, Tabs } from './routes';
 
 const Stack=createNativeStackNavigator<RootRoutes>();
 const Tab=createBottomTabNavigator<Tabs>();
 const Programs=createNativeStackNavigator<ProgramRoutes>();
 const History=createNativeStackNavigator<HistoryRoutes>();
+const Profile=createNativeStackNavigator<ProfileRoutes>();
 const screenOptions={headerShown:false,contentStyle:{backgroundColor:colors.background}};
 function ProgramsStack(){return <Programs.Navigator screenOptions={screenOptions}><Programs.Screen name="ProgramsList" component={ProgramsScreen}/><Programs.Screen name="ProgramEditor" component={ProgramEditor}/></Programs.Navigator>;}
 function HistoryStack(){return <History.Navigator screenOptions={screenOptions}><History.Screen name="HistoryList" component={HistoryScreen}/><History.Screen name="ProgramHistory" component={ProgramHistoryScreen}/><History.Screen name="SessionDetail" component={SessionDetailScreen}/></History.Navigator>;}
+function ProfileStack(){return <Profile.Navigator screenOptions={screenOptions}><Profile.Screen name="ProfileHome" component={ProfileScreen}/><Profile.Screen name="AccountSettings" component={AccountSettingsScreen}/></Profile.Navigator>;}
 function MainTabs(){
   const inset=useSafeAreaInsets();
   return <Tab.Navigator initialRouteName="Home" screenOptions={({route})=>({
@@ -49,7 +51,7 @@ function MainTabs(){
     <Tab.Screen name="Programs" component={ProgramsStack}/>
     <Tab.Screen name="History" component={HistoryStack}/>
     <Tab.Screen name="Team" component={TeamScreen}/>
-    <Tab.Screen name="Profile" component={ProfileScreen}/>
+    <Tab.Screen name="Profile" component={ProfileStack}/>
   </Tab.Navigator>;
 }
 const theme={...DarkTheme,colors:{...DarkTheme.colors,primary:colors.green,background:colors.background,card:colors.panel,text:colors.white,border:colors.border,notification:colors.green}};

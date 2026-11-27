@@ -5,6 +5,8 @@ import { Alert, Animated, AppState, BackHandler, Easing, Modal, Pressable, Scrol
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { auth } from '../config/firebase';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useWorkoutHistoryStore } from '../store/workoutHistoryStore';
@@ -26,8 +28,22 @@ function useClock(){
   },[]);
   return now;
 }
-/** Short buzz. Never let a vibration problem interrupt a workout. */
-function buzz(pattern: number | number[]) { try { Vibration.vibrate(pattern); } catch { /* no vibrator */ } }
+/*
+ * Physical feedback. None of these may ever interrupt a workout, so every
+ * failure (no vibrator, haptics switched off in system settings) is ignored.
+ */
+const feedback = {
+  /** Light tick for small adjustments such as weight steps. */
+  tick: () => { Haptics.selectionAsync().catch(() => {}); },
+  /** Firm tap when a set is completed or the next one starts. */
+  tap: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); },
+  /** Rest is over: long enough to feel with the phone in a pocket or on the bench. */
+  restOver: () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    try { Vibration.vibrate([0, 250, 120, 250]); } catch { /* no vibrator */ }
+  },
+};
+const KEEP_AWAKE_TAG = 'nomosfit-workout';
 
 function Chip({ title, label, color, onPress }: { title: string; label: string; color: string; onPress: () => void }) {
   const [pressed, setPressed] = useState(false);
@@ -62,10 +78,10 @@ function WeightControl({ label, value, onAdjust, onSet, compact = false }: { lab
       </Pressable>
     </View>
     <View style={s.chipRow}>
-      <Chip title="−2.5" color={colors.red} label={`Decrease ${label} by 2.5 kilograms`} onPress={() => onAdjust(-2.5)} />
-      <Chip title="−0.5" color={colors.red} label={`Decrease ${label} by 0.5 kilograms`} onPress={() => onAdjust(-.5)} />
-      <Chip title="+0.5" color={colors.green} label={`Increase ${label} by 0.5 kilograms`} onPress={() => onAdjust(.5)} />
-      <Chip title="+2.5" color={colors.green} label={`Increase ${label} by 2.5 kilograms`} onPress={() => onAdjust(2.5)} />
+      <Chip title="−2.5" color={colors.red} label={`Decrease ${label} by 2.5 kilograms`} onPress={() => { feedback.tick(); onAdjust(-2.5); }} />
+      <Chip title="−0.5" color={colors.red} label={`Decrease ${label} by 0.5 kilograms`} onPress={() => { feedback.tick(); onAdjust(-.5); }} />
+      <Chip title="+0.5" color={colors.green} label={`Increase ${label} by 0.5 kilograms`} onPress={() => { feedback.tick(); onAdjust(.5); }} />
+      <Chip title="+2.5" color={colors.green} label={`Increase ${label} by 2.5 kilograms`} onPress={() => { feedback.tick(); onAdjust(2.5); }} />
     </View>
     <Modal visible={editing} transparent animationType="fade" onRequestClose={() => setEditing(false)}>
       {/* Anchored near the top so the keyboard never covers the field. */}
@@ -152,13 +168,18 @@ export function WorkoutScreen({navigation}:RootProps<'Workout'>) {
     const run=Animated.timing(fade,{toValue:1,duration:220,easing:Easing.out(Easing.quad),useNativeDriver:true});
     run.start();return()=>run.stop();
   },[stepKey,reduced,fade]);
+  // Keep the screen on while this screen is open, so the timer stays visible between sets.
+  useEffect(()=>{
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(()=>{});
+    return()=>{deactivateKeepAwake(KEEP_AWAKE_TAG).catch(()=>{});};
+  },[]);
   // Buzz once when a rest reaches zero, so the phone can stay in a pocket or on the bench.
   const restStartedAt=workout?.rest?.startedAt??null;
   const restLeft=workout?.rest?Math.max(0,workout.rest.durationSeconds-Math.floor((now-workout.rest.startedAt)/1000)):null;
   const buzzedFor=useRef<number|null>(null);
   useEffect(()=>{
     if(restStartedAt===null||restLeft===null||restLeft>0||buzzedFor.current===restStartedAt)return;
-    buzzedFor.current=restStartedAt;buzz([0,250,120,250]);
+    buzzedFor.current=restStartedAt;feedback.restOver();
   },[restStartedAt,restLeft]);
 
   // Hooks above are unconditional, including during completion and an empty store.
@@ -182,13 +203,13 @@ export function WorkoutScreen({navigation}:RootProps<'Workout'>) {
     :{exercise,setNumber:workout.currentSetIndex+2};
   const goal=(target:number)=>`${repLabel(presentation.mode,target)} reps`;
   const setLine=(set?:{reps:number;weight:number})=>set?`${set.reps} reps × ${set.weight.toFixed(1)} kg`:'—';
-  const completeSet = () => { buzz(20); beginProgramRest(); };
+  const completeSet = () => { feedback.tap(); beginProgramRest(); };
   const completeRest = () => {
     // Read the currently centered number even if a fling just ended.
     const state = useWorkoutStore.getState();
     if (!state.workout?.rest) return;
     if (repPicker.current) state.setRestReps(repPicker.current.getValue());
-    buzz(20);
+    feedback.tap();
     useWorkoutStore.getState().finishRest();
   };
   const ready=!!rest&&remaining===0;
