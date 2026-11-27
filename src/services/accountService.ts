@@ -39,6 +39,11 @@ import {
   clearWorkoutHistoryForUser,
 } from './workoutHistoryService';
 
+import {
+  clearWorkoutSyncStateForUser,
+  deleteCloudWorkoutHistoryForUser,
+} from './workoutCloudSyncService';
+
 function getCurrentUser() {
   const user =
     auth.currentUser;
@@ -700,6 +705,7 @@ async function clearLocalAccountData(
         uid
       ),
       clearProgramDesignSettingsForUser(uid),
+      clearWorkoutSyncStateForUser(uid),
     ]);
 
   results.forEach(
@@ -759,6 +765,15 @@ export async function deleteAccountPermanently(
    * is still authenticated.
    */
   await cleanupTeamBeforeAccountDeletion(
+    uid
+  );
+
+  /*
+   * Remove this account's cloud workout
+   * backup. Must also happen while the
+   * user is still authenticated.
+   */
+  await deleteCloudWorkoutHistoryForUser(
     uid
   );
 

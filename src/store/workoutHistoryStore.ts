@@ -11,6 +11,13 @@ import {
   saveWorkoutSession,
 } from '../services/workoutHistoryService';
 
+import {
+  getWorkoutSyncInfo,
+  queueSessionForSync,
+  syncWorkoutHistory,
+  type WorkoutSyncResult,
+} from '../services/workoutCloudSyncService';
+
 import type {
   WorkoutSession,
 } from '../types/history';
@@ -34,6 +41,28 @@ interface WorkoutHistoryState {
 
   error:
     string | null;
+
+  /*
+   * Cloud backup status, for showing
+   * "Synced" / "3 waiting" in the UI.
+   */
+  syncStatus:
+    | 'idle'
+    | 'syncing'
+    | 'synced'
+    | 'offline'
+    | 'error';
+
+  pendingSyncCount:
+    number;
+
+  lastSyncedAt:
+    number | null;
+
+  syncNow:
+    (options?: {
+      force?: boolean;
+    }) => Promise<WorkoutSyncResult | null>;
 
   loadHistory:
     () => Promise<void>;
@@ -64,6 +93,16 @@ function getCurrentUid() {
   );
 }
 
+const SYNC_THROTTLE_MS = 60 * 1000;
+
+let lastSyncAttempt: {
+  uid: string | null;
+  at: number;
+} = {
+  uid: null,
+  at: 0,
+};
+
 export const useWorkoutHistoryStore =
   create<WorkoutHistoryState>(
     (
@@ -84,6 +123,110 @@ export const useWorkoutHistoryStore =
 
       error:
         null,
+
+      syncStatus:
+        'idle',
+
+      pendingSyncCount:
+        0,
+
+      lastSyncedAt:
+        null,
+
+      /*
+       * ===============================
+       * CLOUD SYNC
+       * ===============================
+       *
+       * Uploads workouts waiting on this
+       * phone and restores any that exist
+       * only in Firebase.
+       *
+       * Never throws, never blocks saving.
+       */
+      syncNow:
+        async (options) => {
+          const uid =
+            getCurrentUid();
+
+          if (!uid) {
+            return null;
+          }
+
+          /*
+           * Screens call loadHistory() every
+           * time they gain focus. Without
+           * this, each tab switch would cost
+           * a Firestore read.
+           */
+          const now = Date.now();
+
+          if (
+            !options?.force &&
+            lastSyncAttempt.uid === uid &&
+            now - lastSyncAttempt.at <
+              SYNC_THROTTLE_MS
+          ) {
+            return null;
+          }
+
+          lastSyncAttempt = {
+            uid,
+            at: now,
+          };
+
+          set({
+            syncStatus:
+              'syncing',
+          });
+
+          const result =
+            await syncWorkoutHistory();
+
+          if (
+            getCurrentUid() !== uid
+          ) {
+            return result;
+          }
+
+          /*
+           * Workouts were restored from
+           * Firebase: show them.
+           */
+          if (result.restored > 0) {
+            try {
+              const sessions =
+                await getWorkoutHistory();
+
+              if (
+                getCurrentUid() === uid &&
+                get().ownerUid === uid
+              ) {
+                set({ sessions });
+              }
+            } catch (error) {
+              console.error(
+                'History reload after sync failed:',
+                error
+              );
+            }
+          }
+
+          set({
+            syncStatus:
+              result.status === 'signed-out'
+                ? 'idle'
+                : result.status,
+
+            pendingSyncCount:
+              result.pending,
+
+            lastSyncedAt:
+              result.lastSyncedAt,
+          });
+
+          return result;
+        },
 
       /*
        * ===============================
@@ -194,6 +337,13 @@ export const useWorkoutHistoryStore =
               error:
                 null,
             });
+
+            /*
+             * Local data is on screen.
+             * Back up / restore in the
+             * background.
+             */
+            void get().syncNow();
           } catch (error) {
             console.error(
               'Workout history load error:',
@@ -323,6 +473,41 @@ export const useWorkoutHistoryStore =
           );
 
           /*
+           * Mark it for Firebase upload.
+           *
+           * The mark is stored on the phone,
+           * so an offline workout uploads
+           * later, even after a restart.
+           * A failure here must never fail
+           * the local save.
+           */
+          try {
+            await queueSessionForSync(
+              uid,
+              session.id
+            );
+
+            const info =
+              await getWorkoutSyncInfo(
+                uid
+              );
+
+            set({
+              pendingSyncCount:
+                info.pending,
+            });
+          } catch (error) {
+            console.error(
+              'Workout sync queue error:',
+              error
+            );
+          }
+
+          void get().syncNow({
+            force: true,
+          });
+
+          /*
            * If the account changed during
            * the save, don't put this
            * session into the new user's
@@ -424,6 +609,15 @@ export const useWorkoutHistoryStore =
       resetHistoryState:
         () => {
           set({
+            syncStatus:
+              'idle',
+
+            pendingSyncCount:
+              0,
+
+            lastSyncedAt:
+              null,
+
             ownerUid:
               null,
 
