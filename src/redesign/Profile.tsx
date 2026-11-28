@@ -32,6 +32,7 @@ import { compactNumber, historyDate, historyTime, sessionStats } from './history
 import { auth } from '../config/firebase';
 import { authenticateGoogle, googleStatus } from './googleAuth';
 import { syncRoutinesAndReload } from './programSync';
+import { loadUpdates } from '../providers/AppUpdateProvider';
 import type { ProfileProps } from './routes';
 
 /* ------------------------------------------------------------------ */
@@ -65,6 +66,16 @@ function startOfWeek() {
   const now = new Date();
   const fromMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() - fromMonday).getTime();
+}
+
+/** Which version is running, so an over-the-air update can be confirmed on any phone. */
+function versionLine() {
+  const updates = loadUpdates();
+  if (!updates || !updates.isEnabled) return 'NoMoSFit · development build';
+  const version = updates.runtimeVersion ? `NoMoSFit ${updates.runtimeVersion}` : 'NoMoSFit';
+  if (updates.isEmbeddedLaunch || !updates.updateId) return `${version} · as installed`;
+  const when = updates.createdAt ? `${historyDate(updates.createdAt.getTime())}, ${historyTime(updates.createdAt.getTime())}` : updates.updateId.slice(0, 8);
+  return `${version} · updated ${when}`;
 }
 
 type Message = { text: string; ok: boolean } | null;
@@ -238,9 +249,10 @@ export function ProfileScreen({ navigation }: ProfileProps<'ProfileHome'>) {
     <BackupCard />
 
     <Button title="ACCOUNT SETTINGS" secondary onPress={() => navigation.navigate('AccountSettings')} style={{ marginTop: 20 }} />
-    <View style={{ marginTop: 6, marginBottom: 12 }}>
+    <View style={{ marginTop: 6, marginBottom: 0 }}>
       <LinkButton center title="Sign out" icon="log-out-outline" color={colors.red} onPress={confirmSignOut} />
     </View>
+    <T style={s.version}>{versionLine()}</T>
   </Screen>;
 }
 
@@ -414,6 +426,7 @@ export function AccountSettingsScreen({ navigation }: ProfileProps<'AccountSetti
 
 const s = StyleSheet.create({
   identity: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  version: { fontSize: 12, color: colors.faint, textAlign: 'center', marginBottom: 12 },
   avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#11291A', borderWidth: 1, borderColor: colors.green, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontFamily: fonts.heading, fontSize: 26, color: colors.green },
   name: { fontFamily: fonts.heading, fontSize: 18 },

@@ -35,6 +35,21 @@
       "@react-native-google-signin/google-signin"
     ],
     "newArchEnabled": false,
-    "backgroundColor": "#020504"
+    "backgroundColor": "#020504",
+    "extra": {
+      "eas": {
+        "projectId": "8b9b5e66-48fb-498f-8052-77f6d206ad42"
+      }
+    },
+    "owner": "azhrock",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8b9b5e66-48fb-498f-8052-77f6d206ad42",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    }
   }
 }

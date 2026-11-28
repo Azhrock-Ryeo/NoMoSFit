@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './src/providers/AuthProvider';
 import { CloudSyncProvider } from './src/providers/CloudSyncProvider';
+import { AppUpdateProvider } from './src/providers/AppUpdateProvider';
 import RootNavigator from './src/redesign/Navigation';
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <CloudSyncProvider />
+        <AppUpdateProvider />
         <StatusBar style="light" />
         <RootNavigator />
       </AuthProvider>
