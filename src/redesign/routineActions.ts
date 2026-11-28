@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { auth } from '../config/firebase';
 import { useProgramStore } from '../store/programStore';
 import { useWorkoutStore } from '../store/workoutStore';

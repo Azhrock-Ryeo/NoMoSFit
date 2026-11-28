@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,6 +20,9 @@ import { confirmRemoveRoutine } from './routineActions';
 import { formatTime } from './model';
 import { historyDate, sessionStats } from './historyModel';
 import { startProgram } from './startWorkout';
+import { suggestExercises } from './exercises';
+import { relinkToHistory } from './relink';
+import { StarterRoutines, useStarterOffer } from './starters';
 import type { ProgramProps, RootRoutes, Tabs } from './routes';
 
 function useAccountPrograms(){
@@ -69,6 +73,7 @@ export function ProgramsScreen({navigation}:ProgramProps<'ProgramsList'>) {
   const settings=useProgramSettings(s=>s.values);
   const loading=useProgramStore(s=>s.isLoading);
   const error=useProgramStore(s=>s.error);
+  const offerStarters=useStarterOffer(!loading&&!error&&programs.length===0);
   return <Screen bottomInset={false}>
     <Heading title="WORKOUT EDIT" right={<IconButton icon="add-circle" color={colors.green} label="Create workout" onPress={()=>navigation.navigate('ProgramEditor',{})}/>}/>
     {loading&&<Notice message="Loading programs…"/>}
@@ -77,7 +82,8 @@ export function ProgramsScreen({navigation}:ProgramProps<'ProgramsList'>) {
       <View style={s.programTop}><T style={{fontFamily:fonts.heading,fontSize:16,flex:1}}>{program.name.toUpperCase()}</T><IconButton icon="create" label={`Edit ${program.name}`} color={colors.green} onPress={()=>navigation.navigate('ProgramEditor',{programId:program.id})}/></View>
       <ExerciseTable compact rows={programGoalRows(program,normalizeSettings(settings[program.id]))}/><View style={{flexDirection:'row',alignItems:'center',justifyContent:'flex-end',paddingTop:6}}><Pressable accessibilityRole="button" onPress={()=>confirmRemoveRoutine(program)} style={{minHeight:44,paddingHorizontal:10,justifyContent:'center'}}><T style={{color:colors.red}}>Remove routine · keep History</T></Pressable></View>
     </View>)}
-    {!loading&&!error&&!programs.length&&<><Notice message="No workouts yet."/><Button title="Create workout" onPress={()=>navigation.navigate('ProgramEditor',{})}/></>}
+    {!loading&&!error&&!programs.length&&<><Notice message="No routines yet. Create your own or add a template below."/><Button title="CREATE WORKOUT" onPress={()=>navigation.navigate('ProgramEditor',{})}/></>}
+    {offerStarters&&<StarterRoutines/>}
   </Screen>;
 }
 function blankExercise(mode:TrainingMode):ProgramExercise {return {id:createId('exercise'),name:'',sets:3,targetReps:mode==='CUSTOM'?8:PRESETS[mode].target};}
@@ -97,6 +103,10 @@ export function ProgramEditor({navigation,route}:ProgramProps<'ProgramEditor'>) 
   const [saving,setSaving]=useState(false);
   const [dragging,setDragging]=useState(false);
   const [numberEditor,setNumberEditor]=useState<{id:string;kind:'sets'|'reps'|'weight';value:string}|null>(null);
+  // Names you already use, most recent History first, offered while typing.
+  const [focusedExercise,setFocusedExercise]=useState<string|null>(null);
+  const historySessions=useWorkoutHistoryStore(state=>state.sessions);
+  const yourExercises=React.useMemo(()=>[...historySessions.flatMap(session=>session.completedSets.map(set=>set.exerciseName)),...programs.flatMap(program=>program.exercises.map(e=>e.name))],[historySessions,programs]);
   const initialized=useRef(false);
   const persistedId=useRef<string|undefined>(programId);
   const draftId=useRef(programId??createId());
@@ -130,13 +140,22 @@ export function ProgramEditor({navigation,route}:ProgramProps<'ProgramEditor'>) 
     if(!settingsLoaded||settingsError){Alert.alert('Training settings',settingsError??'Settings are still loading.');return;}
     savingRef.current=true;setSaving(true);
     try {
-      const cleaned=normalizeExercises(exercises,settings.mode);
+      let cleaned=normalizeExercises(exercises,settings.mode);
+      let savedSettings=settings;
+      if(!persistedId.current){
+        // Same name as a removed routine that still has History: continue that History.
+        const link=relinkToHistory(name,cleaned,historySessions,programs);
+        if(link.programId){
+          draftId.current=link.programId;cleaned=link.exercises;
+          savedSettings={...settings,initialWeights:Object.fromEntries(Object.entries(settings.initialWeights).map(([id,kg])=>[link.renamed[id]??id,kg]))};
+        }
+      }
       const input={name:name.trim(),category,targetMuscles:existing?.targetMuscles??[],exercises:cleaned};
       if(persistedId.current) await useProgramStore.getState().editProgram(persistedId.current,input);
       else {const result=await useProgramStore.getState().addProgram({...input,id:draftId.current});persistedId.current=result.id;}
       if(auth.currentUser?.uid!==owner||!mounted.current)return;
       // Retry uses persistedId, never creates a duplicate if this second write fails.
-      await useProgramSettings.getState().save(persistedId.current!,settings);
+      await useProgramSettings.getState().save(persistedId.current!,savedSettings);
       if(auth.currentUser?.uid!==owner||!mounted.current)return;
       savedOnce.current=true;navigation.goBack();
     } catch(err){if(auth.currentUser?.uid===owner&&mounted.current)Alert.alert('Save not complete',`${err instanceof Error?err.message:'Unable to save.'}\nRetrying will not create a duplicate program.`);}
@@ -164,13 +183,14 @@ export function ProgramEditor({navigation,route}:ProgramProps<'ProgramEditor'>) 
     <Heading title={programId?'EDIT WORKOUT':'CREATE WORKOUT'} onBack={()=>navigation.goBack()}/>
     <T style={{fontSize:12,color:colors.muted,lineHeight:18,marginBottom:18}}>Choose a day, select a training style, then add your exercises. Sets and weight are always editable.</T>
     {programId&&!existing ? <Notice message="This program is no longer available."/> : <>
-      <Pressable accessibilityRole="button" accessibilityLabel="Choose workout day" onPress={()=>setDayMenu(true)} style={s.daySelect}><T numberOfLines={1} style={{fontSize:15,color:name?'#111111':'#999999',flex:1}}>{name||'CHOOSE YOUR DAY'}</T><Ionicons name="chevron-down" size={24} color="#777"/></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Choose workout day" onPress={()=>setDayMenu(true)} style={s.daySelect}><T numberOfLines={1} style={{fontSize:15,color:name?colors.white:colors.faint,flex:1}}>{name||'CHOOSE YOUR DAY'}</T><Ionicons name="chevron-down" size={22} color={colors.muted}/></Pressable>
       <TrainingSelector mode={settings.mode} rest={settings.restSeconds} onChoose={changeMode} onCustom={openCustom} onGesture={setDragging}/>
       {settingsError&&<Notice message={settingsError} retry={()=>{void useProgramSettings.getState().load();}}/>}
       <View style={s.editorActions}><IconButton icon="remove-circle" color={colors.red} label="Remove last exercise" disabled={exercises.length<2} onPress={()=>setExercises(all=>all.length>1?all.slice(0,-1):all)}/><IconButton icon="add-circle" color={colors.green} label="Add exercise" onPress={()=>setExercises(all=>[...all,blankExercise(settings.mode)])}/></View>
       {exercises.map((exercise,index)=><View key={exercise.id} style={[common.panel,{marginBottom:18}]}>
         <View style={{flexDirection:'row',alignItems:'center'}}><T style={{fontSize:18,fontFamily:fonts.heading,flex:1}}>EXERCISE {index+1}</T><IconButton icon="arrow-up" label="Move exercise up" disabled={index===0} onPress={()=>reorder(index,-1)} style={{width:32}}/><IconButton icon="arrow-down" label="Move exercise down" disabled={index===exercises.length-1} onPress={()=>reorder(index,1)} style={{width:32}}/></View>
-        <View style={{marginTop:8,marginBottom:18}}><Field accessibilityLabel={`Exercise ${index+1} name`} placeholder="EXERCISE NAME" value={exercise.name} onChangeText={name=>update(exercise.id,{name})} maxLength={60} style={{fontSize:12,minHeight:40}}/></View>
+        <View style={{marginTop:8,marginBottom:18}}><Field dark accessibilityLabel={`Exercise ${index+1} name`} placeholder="Exercise name" value={exercise.name} onChangeText={name=>update(exercise.id,{name})} onFocus={()=>setFocusedExercise(exercise.id)} autoCapitalize="words" maxLength={60} style={{fontSize:15,minHeight:46}}/>
+          {focusedExercise===exercise.id&&suggestExercises(exercise.name,yourExercises).length>0&&<View style={s.suggestions}>{suggestExercises(exercise.name,yourExercises).map(option=><Pressable key={option} accessibilityRole="button" accessibilityLabel={`Use ${option}`} onPress={()=>update(exercise.id,{name:option})} style={s.suggestion}><T style={s.suggestionText}>{option}</T></Pressable>)}</View>}</View>
         <View style={s.metrics}>
           <View style={{flex:1}}><T style={s.metricLabel}>{settings.mode==='CUSTOM'?'REPS':'REPS · LOCKED'}</T>
             {settings.mode==='CUSTOM'?<Pressable accessibilityRole="button" accessibilityLabel={`Edit ${exercise.name} target reps`} onPress={()=>setNumberEditor({id:exercise.id,kind:'reps',value:String(exercise.targetReps)})} style={s.valueHit}><T style={s.metricValue}>{exercise.targetReps}x</T></Pressable>:<View style={s.valueHit}><T style={s.metricValue}>{repLabel(settings.mode,exercise.targetReps)}x</T></View>}
@@ -182,23 +202,23 @@ export function ProgramEditor({navigation,route}:ProgramProps<'ProgramEditor'>) 
         {exercises.length>1&&<Pressable onPress={()=>setExercises(all=>all.filter(e=>e.id!==exercise.id))} style={s.remove}><T style={{color:colors.red,fontSize:10}}>Remove exercise</T></Pressable>}
       </View>)}
       <Button title={programId?"SAVE CHANGES":"SAVE WORKOUT"} onPress={save} loading={saving}/>
-      {programId&&<Button title="Remove routine · keep History" secondary onPress={remove} disabled={saving} style={{marginTop:18}}/>}
+      {programId&&<Button title="REMOVE ROUTINE · KEEP HISTORY" secondary onPress={remove} disabled={saving} style={{marginTop:18}}/>}
     </>}
     <Modal visible={numberEditor!==null} transparent animationType="fade" onRequestClose={()=>setNumberEditor(null)}><View style={s.modalBackdrop}><View style={common.panel}>
       <T style={common.section}>{numberEditor?.kind==='weight'?'STARTING WEIGHT (KG)':numberEditor?.kind==='sets'?'WORKING SETS':'CUSTOM TARGET REPS'}</T>
-      <Field accessibilityLabel="Value" keyboardType={numberEditor?.kind==='weight'?'decimal-pad':'number-pad'} value={numberEditor?.value??''} onChangeText={value=>setNumberEditor(current=>current?{...current,value}:null)} selectTextOnFocus maxLength={8}/>
-      <Button title="Apply" onPress={applyNumber} style={{marginTop:20}}/><Button title="Cancel" secondary onPress={()=>setNumberEditor(null)} style={{marginTop:12}}/>
+      <Field dark accessibilityLabel="Value" keyboardType={numberEditor?.kind==='weight'?'decimal-pad':'number-pad'} value={numberEditor?.value??''} onChangeText={value=>setNumberEditor(current=>current?{...current,value}:null)} selectTextOnFocus maxLength={8}/>
+      <Button title="APPLY" onPress={applyNumber} style={{marginTop:20}}/><Button title="CANCEL" secondary onPress={()=>setNumberEditor(null)} style={{marginTop:12}}/>
     </View></View></Modal>
     <Modal visible={dayMenu} transparent animationType="fade" onRequestClose={()=>setDayMenu(false)}><View style={s.modalBackdrop}><View style={s.dayMenu}>
-      <View style={{flexDirection:'row',alignItems:'center'}}><T style={{color:'#111',fontSize:17,flex:1}}>CHOOSE YOUR DAY</T><IconButton icon="close" label="Close day picker" color="#555" onPress={()=>setDayMenu(false)}/></View>
-      {DAYS.map(day=><Pressable key={day.name} onPress={()=>{setName(day.name);setCategory(day.category);setDayMenu(false);}} style={s.dayOption}><T style={{color:'#111',fontSize:17}}>{day.name}</T></Pressable>)}
-      <T style={{fontSize:11,color:'#555',marginTop:16,marginBottom:8}}>Or name your own workout</T><TextInput accessibilityLabel="Custom workout name" value={name} onChangeText={setName} maxLength={50} style={s.customName}/><Button title="Use name" onPress={()=>setDayMenu(false)} style={{marginTop:12}}/>
+      <View style={{flexDirection:'row',alignItems:'center'}}><T style={{fontFamily:fonts.heading,fontSize:16,flex:1}}>CHOOSE YOUR DAY</T><IconButton icon="close" label="Close day picker" color={colors.muted} onPress={()=>setDayMenu(false)}/></View>
+      {DAYS.map(day=><Pressable key={day.name} onPress={()=>{setName(day.name);setCategory(day.category);setDayMenu(false);}} style={s.dayOption}><T style={{fontSize:16}}>{day.name}</T></Pressable>)}
+      <T style={{fontSize:12,color:colors.muted,marginTop:16,marginBottom:8}}>Or name your own workout</T><TextInput accessibilityLabel="Custom workout name" value={name} onChangeText={setName} maxLength={50} placeholder="e.g. Upper body" placeholderTextColor={colors.faint} selectionColor={colors.green} style={s.customName}/><Button title="USE NAME" onPress={()=>setDayMenu(false)} style={{marginTop:12}}/>
     </View></View></Modal>
     <Modal visible={custom} transparent animationType="fade" onRequestClose={()=>setCustom(false)}><View style={s.modalBackdrop}><View style={common.panel}>
       <T style={common.section}>CUSTOM REPS + REST</T><T style={{fontSize:11,color:colors.muted,lineHeight:18,marginBottom:18}}>Only Custom unlocks manual target reps. These values apply to this program; you can adjust each exercise’s reps afterwards.</T>
-      <View style={{flexDirection:'row',gap:10}}><View style={{flex:1}}><T style={s.metricLabel}>MINUTES</T><Field accessibilityLabel="Rest minutes" keyboardType="number-pad" value={minutes} onChangeText={setMinutes} maxLength={2}/></View><View style={{flex:1}}><T style={s.metricLabel}>SECONDS</T><Field accessibilityLabel="Rest seconds" keyboardType="number-pad" value={seconds} onChangeText={setSeconds} maxLength={2}/></View></View>
-      <T style={[s.metricLabel,{marginTop:16}]}>TARGET REPS</T><Field accessibilityLabel="Custom target reps" keyboardType="number-pad" value={customReps} onChangeText={setCustomReps} maxLength={3}/>
-      <Button title="Apply custom settings" onPress={saveCustom} style={{marginTop:22}}/><Button title="Cancel" onPress={()=>setCustom(false)} secondary style={{marginTop:12}}/>
+      <View style={{flexDirection:'row',gap:10}}><View style={{flex:1}}><T style={s.metricLabel}>MINUTES</T><Field dark accessibilityLabel="Rest minutes" keyboardType="number-pad" value={minutes} onChangeText={setMinutes} maxLength={2}/></View><View style={{flex:1}}><T style={s.metricLabel}>SECONDS</T><Field dark accessibilityLabel="Rest seconds" keyboardType="number-pad" value={seconds} onChangeText={setSeconds} maxLength={2}/></View></View>
+      <T style={[s.metricLabel,{marginTop:16}]}>TARGET REPS</T><Field dark accessibilityLabel="Custom target reps" keyboardType="number-pad" value={customReps} onChangeText={setCustomReps} maxLength={3}/>
+      <Button title="APPLY CUSTOM SETTINGS" onPress={saveCustom} style={{marginTop:22}}/><Button title="CANCEL" onPress={()=>setCustom(false)} secondary style={{marginTop:12}}/>
     </View></View></Modal>
   </Screen>;
 }
@@ -206,8 +226,9 @@ const s=StyleSheet.create({
   quickHeading:{flexDirection:'row',alignItems:'center',gap:24,minHeight:44,marginBottom:22},dot:{width:22,height:22,borderRadius:11,backgroundColor:colors.green},quickTitle:{fontFamily:fonts.heading,fontSize:18},
   quickCard:{backgroundColor:colors.panel,borderRadius:15,padding:16,borderWidth:1,borderColor:colors.border,marginBottom:16},quickLine:{height:1,backgroundColor:colors.border,marginVertical:7},quickHint:{fontSize:8,color:colors.green,lineHeight:13},
   programTop:{flexDirection:'row',alignItems:'center',backgroundColor:colors.panel,borderTopLeftRadius:12,borderTopRightRadius:12,paddingHorizontal:18,paddingTop:8},
-  daySelect:{flexDirection:'row',alignItems:'center',gap:8,minHeight:48,borderRadius:20,backgroundColor:'white',paddingHorizontal:16},
+  daySelect:{flexDirection:'row',alignItems:'center',gap:8,minHeight:48,borderRadius:14,backgroundColor:'#12151C',borderWidth:1,borderColor:colors.border,paddingHorizontal:16},
   editorActions:{flexDirection:'row',justifyContent:'flex-end'},metrics:{flexDirection:'row',gap:12},metricLabel:{fontSize:9,color:colors.muted,marginBottom:8},metricValue:{fontSize:17,color:colors.green},valueHit:{minHeight:44,justifyContent:'center'},
   remove:{alignSelf:'flex-end',minHeight:40,justifyContent:'center'},
-  modalBackdrop:{flex:1,justifyContent:'center',paddingHorizontal:26,backgroundColor:'rgba(0,0,0,.82)'},dayMenu:{backgroundColor:'white',padding:20,borderRadius:20},dayOption:{borderBottomWidth:1,borderColor:'#D4D4D8',minHeight:44,justifyContent:'center'},customName:{borderWidth:1,borderColor:'#BBB',padding:12,borderRadius:8,color:'#111',fontFamily:fonts.body},
+  suggestions:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:10},suggestion:{minHeight:36,justifyContent:'center',paddingHorizontal:12,borderRadius:18,borderWidth:1,borderColor:colors.border,backgroundColor:'#12151C'},suggestionText:{fontSize:13,color:colors.green},
+  modalBackdrop:{flex:1,justifyContent:'center',paddingHorizontal:26,backgroundColor:'rgba(0,0,0,.82)'},dayMenu:{backgroundColor:colors.panel,borderWidth:1,borderColor:colors.border,padding:20,borderRadius:18},dayOption:{borderBottomWidth:1,borderColor:colors.border,minHeight:48,justifyContent:'center'},customName:{borderWidth:1,borderColor:colors.border,backgroundColor:'#12151C',padding:12,borderRadius:12,color:colors.white,fontFamily:fonts.body},
 });

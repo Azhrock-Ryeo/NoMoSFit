@@ -1,7 +1,8 @@
 /** @jsxImportSource react */
-import { sessionStats } from './historyModel';
+import { compactNumber, historyDate, sessionStats } from './historyModel';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, BackHandler, Easing, Modal, Pressable, ScrollView, StyleSheet, Vibration, View, useWindowDimensions } from 'react-native';
+import { Animated, AppState, BackHandler, Easing, Modal, Pressable, ScrollView, StyleSheet, Vibration, View, useWindowDimensions } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,10 +12,11 @@ import { auth } from '../config/firebase';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useWorkoutHistoryStore } from '../store/workoutHistoryStore';
 import { publishTeamWorkoutActivity } from '../services/teamActivityService';
-import { Brand, Button, common, Field, IconButton, Notice, ProgressTable, Screen, SessionTable, T } from './ui';
+import { Brand, Button, common, Field, IconButton, Notice, Screen, SessionTable, T } from './ui';
 import { useReducedMotion } from './motion';
 import { colors, fonts } from './tokens';
-import { formatTime, previousSession, repLabel } from './model';
+import { formatTime, previousSession, repLabel, summarizeSets } from './model';
+import type { WorkoutSession } from '../types/history';
 import { useWorkoutPresentation, beginProgramRest } from './startWorkout';
 import { RepPicker, type RepPickerHandle } from './RepPicker';
 import type { RootProps } from './routes';
@@ -87,7 +89,7 @@ function WeightControl({ label, value, onAdjust, onSet, compact = false }: { lab
       {/* Anchored near the top so the keyboard never covers the field. */}
       <View style={s.modalBackdrop}><View style={common.panel}>
         <T style={s.modalTitle}>{label.toUpperCase()}</T>
-        <Field accessibilityLabel={`${label} in kilograms`} value={draft} onChangeText={text => { setDraft(text); setError(''); }}
+        <Field dark accessibilityLabel={`${label} in kilograms`} value={draft} onChangeText={text => { setDraft(text); setError(''); }}
           keyboardType="decimal-pad" autoFocus selectTextOnFocus returnKeyType="done" onSubmitEditing={save} maxLength={7} placeholder="kg" />
         <T style={s.modalHint}>{error || 'Saved to the nearest 0.5 kg.'}</T>
         <View style={s.modalActions}>
@@ -285,25 +287,106 @@ export function WorkoutScreen({navigation}:RootProps<'Workout'>) {
     </View>
   </Screen>;
 }
+/** How each exercise moved against the previous session of the same routine. */
+function compareSessions(current: WorkoutSession, previous: WorkoutSession) {
+  const before = summarizeSets(previous.completedSets);
+  const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return summarizeSets(current.completedSets).map(row => {
+    const old = before.find(item => item.id === row.id);
+    if (!old) return { id: row.id, name: row.name, direction: 'new' as const, text: 'New' };
+    const weight = round(Math.max(...row.weights) - Math.max(...old.weights));
+    const reps = sum(row.reps) - sum(old.reps);
+    const signed = (n: number, unit: string) => `${n > 0 ? '+' : '−'}${Math.abs(n)} ${unit}`;
+    // Heavier beats more reps; reps decide when the top weight is the same.
+    if (weight !== 0) return { id: row.id, name: row.name, direction: weight > 0 ? 'up' as const : 'down' as const, text: signed(weight, 'kg') };
+    if (reps !== 0) return { id: row.id, name: row.name, direction: reps > 0 ? 'up' as const : 'down' as const, text: signed(reps, reps === 1 || reps === -1 ? 'rep' : 'reps') };
+    return { id: row.id, name: row.name, direction: 'same' as const, text: 'Matched' };
+  });
+}
+
 export function AfterWorkoutScreen({navigation,route}:RootProps<'AfterWorkout'>) {
   const sessions=useWorkoutHistoryStore(s=>s.sessions);
   const session=sessions.find(s=>s.id===route.params.sessionId);
+  const insets=useSafeAreaInsets();
   const finish=useCallback(()=>navigation.reset({index:0,routes:[{name:'Main',params:{screen:'Home'}}]}),[navigation]);
   useFocusEffect(useCallback(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{finish();return true;});return()=>sub.remove();},[finish]));
+  // One celebratory pulse when the summary appears.
+  useEffect(()=>{Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(()=>{});},[]);
   if(!session)return <Screen><Notice message="This workout summary is not available."/><Button title="Back to Home" onPress={finish}/></Screen>;
   const previous=previousSession(sessions,session);
-  return <Screen>
-    <View style={{alignItems:'center',marginTop:18,marginBottom:28}}><View style={s.success}><Ionicons name="checkmark" color="white" size={36}/></View><T style={{color:colors.green,fontSize:10,marginTop:14}}>WORKOUT COMPLETE</T><T style={[common.section,{marginTop:9,marginBottom:7}]}>{session.programName.toUpperCase()}</T><T style={{fontSize:9,color:colors.muted}}>{new Date(session.finishedAt).toLocaleDateString()}</T></View>
-    <View style={{borderWidth:2,borderColor:colors.green,backgroundColor:'#10231A',borderRadius:18,padding:16,marginBottom:14}}>
-      <T style={{fontFamily:fonts.heading,fontSize:18,color:colors.green}}>JUST FINISHED</T>
-      <T style={{fontSize:14,marginTop:10}}>{sessionStats(session).sets} completed sets · {sessionStats(session).reps} actual reps · {formatTime(session.durationSeconds)}</T>
-      <T style={{color:colors.muted,fontSize:12,marginTop:8}}>Your current workout is below. Every set and rep has been kept for next week's comparison.</T>
-    </View><SessionTable session={session} highlight/>
-    <T style={common.section}>LAST WORKOUT</T>{previous?<SessionTable session={previous}/>:<Notice message="No previous session for this program yet."/>}
-    <T style={common.section}>PROGRESSION</T><ProgressTable current={session} previous={previous}/>
-    <Button title="BACK TO HOME" onPress={finish} style={{marginTop:30}}/>
+  const stats=sessionStats(session);
+  const changes=previous?compareSessions(session,previous):[];
+  const improved=changes.filter(change=>change.direction==='up').length;
+  const before=previous?sessionStats(previous):null;
+  const delta=(now:number,then:number,unit:string)=>{
+    const diff=Math.round((now-then)*10)/10;
+    return diff===0?`Same ${unit} as last time`:`${diff>0?'+':'−'}${compactNumber(Math.abs(diff))} ${unit} vs last time`;
+  };
+  const headline=!previous?'First session recorded'
+    :improved>0?`Improved on ${improved} ${improved===1?'exercise':'exercises'}`
+    :changes.every(change=>change.direction==='same')?'Matched your last session'
+    :'Session logged';
+  return <Screen scroll={false} contentStyle={{paddingBottom:0}}>
+    <ScrollView style={{flex:1}} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom:24}}>
+      <View style={a.top}>
+        <View style={s.success}><Ionicons name="checkmark" color={colors.background} size={36}/></View>
+        <T style={a.eyebrow}>WORKOUT COMPLETE</T>
+        <T numberOfLines={2} style={a.title}>{session.programName.toUpperCase()}</T>
+        <T style={a.headline}>{headline}</T>
+      </View>
+
+      <View style={a.grid}>
+        <View style={[common.panel,a.stat]}><T style={a.statValue}>{formatTime(session.durationSeconds)}</T><T style={a.statLabel}>DURATION</T></View>
+        <View style={[common.panel,a.stat]}><T style={a.statValue}>{stats.sets}</T><T style={a.statLabel}>SETS</T></View>
+      </View>
+      <View style={a.grid}>
+        <View style={[common.panel,a.stat]}><T style={a.statValue}>{stats.reps}</T><T style={a.statLabel}>REPS</T></View>
+        <View style={[common.panel,a.stat]}><T numberOfLines={1} adjustsFontSizeToFit style={a.statValue}>{compactNumber(stats.volume)}</T><T style={a.statLabel}>KG VOLUME</T></View>
+      </View>
+
+      <T style={a.section}>COMPARED WITH LAST TIME</T>
+      {previous&&before ? <View style={common.panel}>
+        <T style={a.compareLine}>{delta(stats.reps,before.reps,'reps')}</T>
+        <T style={a.compareLine}>{delta(stats.volume,before.volume,'kg volume')}</T>
+        <View style={a.divider}/>
+        {changes.map(change=><View key={change.id} style={a.changeRow}>
+          <Ionicons name={change.direction==='up'?'trending-up':change.direction==='down'?'trending-down':change.direction==='new'?'sparkles-outline':'remove'} size={18}
+            color={change.direction==='up'?colors.green:colors.muted}/>
+          <T numberOfLines={1} style={a.changeName}>{change.name}</T>
+          <T style={[a.changeText,change.direction==='up'&&{color:colors.green}]}>{change.text}</T>
+        </View>)}
+        <T style={a.caption}>{`Compared with ${historyDate(previous.finishedAt)}. Top weight first, then total reps.`}</T>
+      </View> : <View style={common.panel}>
+        <T style={a.compareLine}>This is your baseline for {session.programName}.</T>
+        <T style={a.caption}>Train it again and you will see what changed here.</T>
+      </View>}
+
+      <T style={a.section}>EVERY SET</T>
+      <SessionTable session={session}/>
+    </ScrollView>
+    <View style={[s.footer,{paddingBottom:Math.max(insets.bottom,12)+8}]}>
+      <Button title="DONE" onPress={finish}/>
+    </View>
   </Screen>;
 }
+const a=StyleSheet.create({
+  top:{alignItems:'center',marginTop:8,marginBottom:22},
+  eyebrow:{color:colors.green,fontSize:12,letterSpacing:1,marginTop:14},
+  title:{fontFamily:fonts.heading,fontSize:24,lineHeight:30,textAlign:'center',marginTop:8},
+  headline:{fontSize:15,color:colors.white,marginTop:10,textAlign:'center'},
+  grid:{flexDirection:'row',gap:12,marginBottom:12},
+  stat:{flex:1,alignItems:'center',paddingVertical:16},
+  statValue:{fontFamily:fonts.heading,fontSize:26,lineHeight:32},
+  statLabel:{fontSize:12,color:colors.muted,letterSpacing:1,marginTop:4},
+  section:{fontSize:12,color:colors.muted,letterSpacing:1,marginTop:18,marginBottom:10},
+  compareLine:{fontSize:15,marginBottom:6},
+  divider:{height:1,backgroundColor:colors.border,marginVertical:10},
+  changeRow:{flexDirection:'row',alignItems:'center',gap:10,minHeight:36},
+  changeName:{flex:1,fontSize:14},
+  changeText:{fontSize:14,color:colors.muted},
+  caption:{fontSize:12,color:colors.muted,marginTop:8,lineHeight:17},
+});
 const s=StyleSheet.create({
   workoutHeader:{flexDirection:'row',alignItems:'center',gap:6,minHeight:44,marginBottom:12},
   programName:{fontFamily:fonts.heading,fontSize:16,flex:1},

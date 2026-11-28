@@ -10,7 +10,8 @@
  * dialog is used only to confirm sign-out and permanent deletion.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
@@ -30,6 +31,7 @@ import { colors, fonts } from './tokens';
 import { compactNumber, historyDate, historyTime, sessionStats } from './historyModel';
 import { auth } from '../config/firebase';
 import { authenticateGoogle, googleStatus } from './googleAuth';
+import { syncRoutinesAndReload } from './programSync';
 import type { ProfileProps } from './routes';
 
 /* ------------------------------------------------------------------ */
@@ -125,6 +127,19 @@ function BackupCard() {
     : pending ? `${waiting}.`
     : status === 'synced' ? 'All workouts are backed up.'
     : 'Checking your backup…';
+  const [restore, setRestore] = useState<Message>(null);
+  // Re-reads the whole backup and adds anything this phone is missing. Never removes anything.
+  const restoreAll = async () => {
+    setRestore(null);
+    const [history] = await Promise.all([
+      useWorkoutHistoryStore.getState().syncNow({ force: true, full: true }),
+      syncRoutinesAndReload({ force: true }),
+    ]);
+    if (!history || history.status !== 'synced') { setRestore({ ok: false, text: history?.status === 'offline' ? 'You are offline. Connect and try again.' : 'Could not reach your backup. Try again.' }); return; }
+    setRestore({ ok: true, text: history.restored > 0
+      ? `Restored ${history.restored} ${history.restored === 1 ? 'workout' : 'workouts'} from your backup.`
+      : 'Nothing to restore. This phone already has every workout in your backup.' });
+  };
   const healthy = !busy && status === 'synced' && pending === 0;
   const when = lastSyncedAt ? `Last synced ${historyDate(lastSyncedAt)}, ${historyTime(lastSyncedAt)}` : 'Not synced on this phone yet';
   return <Card icon={healthy ? 'cloud-done-outline' : status === 'offline' ? 'cloud-offline-outline' : 'cloud-upload-outline'} title="Cloud backup" subtitle={when}>
@@ -132,7 +147,9 @@ function BackupCard() {
       <View style={[s.dot, { backgroundColor: healthy ? colors.green : status === 'error' ? colors.red : colors.muted }]} />
       <T style={s.backupText}>{line}</T>
     </View>
-    <Button title="SYNC NOW" secondary loading={busy} onPress={() => { void useWorkoutHistoryStore.getState().syncNow({ force: true }); }} style={{ marginTop: 14 }} />
+    <Button title="SYNC NOW" secondary loading={busy} onPress={() => { setRestore(null); void useWorkoutHistoryStore.getState().syncNow({ force: true }); void syncRoutinesAndReload({ force: true }); }} style={{ marginTop: 14 }} />
+    <Banner message={restore} />
+    <LinkButton center title="Restore from cloud" icon="cloud-download-outline" color={colors.muted} disabled={busy} onPress={() => { void restoreAll(); }} />
   </Card>;
 }
 
@@ -335,7 +352,7 @@ export function AccountSettingsScreen({ navigation }: ProfileProps<'AccountSetti
     <Heading title="ACCOUNT SETTINGS" onBack={() => navigation.goBack()} />
 
     <Card icon="person-outline" title="Display name" subtitle="Shown across NoMoSFit and on your Team roster.">
-      <Field accessibilityLabel="Display name" value={name} onChangeText={setName} placeholder="Your name" maxLength={40} />
+      <Field dark accessibilityLabel="Display name" value={name} onChangeText={setName} placeholder="Your name" maxLength={40} />
       <Banner message={messages.name ?? null} />
       <Button title="SAVE NAME" onPress={saveName} loading={busy === 'name'} disabled={!!busy && busy !== 'name'} style={s.action} />
     </Card>
@@ -351,8 +368,8 @@ export function AccountSettingsScreen({ navigation }: ProfileProps<'AccountSetti
       {usesPassword && <>
         <LinkButton title={emailForm ? 'Cancel email change' : 'Change email'} icon="create-outline" onPress={() => setEmailForm(open => !open)} disabled={!!busy} />
         {emailForm && <View style={s.form}>
-          <Field accessibilityLabel="New email address" icon="mail-outline" value={newEmail} onChangeText={setNewEmail} placeholder="New email address" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
-          <Field accessibilityLabel="Current password" icon="lock-closed-outline" value={emailPassword} onChangeText={setEmailPassword} placeholder="Current password" secureTextEntry autoCapitalize="none" />
+          <Field dark accessibilityLabel="New email address" icon="mail-outline" value={newEmail} onChangeText={setNewEmail} placeholder="New email address" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+          <Field dark accessibilityLabel="Current password" icon="lock-closed-outline" value={emailPassword} onChangeText={setEmailPassword} placeholder="Current password" secureTextEntry autoCapitalize="none" />
           <Button title="VERIFY NEW EMAIL" onPress={changeEmail} loading={busy === 'email'} disabled={!!busy && busy !== 'email'} />
         </View>}
       </>}
@@ -370,9 +387,9 @@ export function AccountSettingsScreen({ navigation }: ProfileProps<'AccountSetti
       {usesPassword && <>
         <LinkButton title={passwordForm ? 'Cancel password change' : 'Change password'} icon="lock-closed-outline" onPress={() => setPasswordForm(open => !open)} disabled={!!busy} />
         {passwordForm && <View style={s.form}>
-          <Field accessibilityLabel="Current password" value={currentPassword} onChangeText={setCurrentPassword} placeholder="Current password" secureTextEntry autoCapitalize="none" />
-          <Field accessibilityLabel="New password" value={newPassword} onChangeText={setNewPassword} placeholder="New password" secureTextEntry autoCapitalize="none" />
-          <Field accessibilityLabel="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm new password" secureTextEntry autoCapitalize="none" />
+          <Field dark accessibilityLabel="Current password" value={currentPassword} onChangeText={setCurrentPassword} placeholder="Current password" secureTextEntry autoCapitalize="none" />
+          <Field dark accessibilityLabel="New password" value={newPassword} onChangeText={setNewPassword} placeholder="New password" secureTextEntry autoCapitalize="none" />
+          <Field dark accessibilityLabel="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm new password" secureTextEntry autoCapitalize="none" />
           <Button title="UPDATE PASSWORD" onPress={changePassword} loading={busy === 'password'} disabled={!!busy && busy !== 'password'} />
         </View>}
         <LinkButton title="Send password reset email" icon="mail-outline" color={colors.muted} onPress={sendReset} disabled={!!busy} />
@@ -385,8 +402,8 @@ export function AccountSettingsScreen({ navigation }: ProfileProps<'AccountSetti
         : !deleteForm ? <LinkButton title="Delete account" icon="trash-outline" color={colors.red} onPress={() => setDeleteForm(true)} disabled={!!busy} />
         : <View style={s.form}>
           <T style={s.note}>This cannot be undone. If you own a Team, the Team and its shared activity are deleted too.</T>
-          <Field accessibilityLabel="Current password" value={deletePassword} onChangeText={setDeletePassword} placeholder="Current password" secureTextEntry autoCapitalize="none" />
-          <Field accessibilityLabel="Type DELETE to confirm" value={deleteWord} onChangeText={setDeleteWord} placeholder="Type DELETE" autoCapitalize="characters" autoCorrect={false} />
+          <Field dark accessibilityLabel="Current password" value={deletePassword} onChangeText={setDeletePassword} placeholder="Current password" secureTextEntry autoCapitalize="none" />
+          <Field dark accessibilityLabel="Type DELETE to confirm" value={deleteWord} onChangeText={setDeleteWord} placeholder="Type DELETE" autoCapitalize="characters" autoCorrect={false} />
           <Button title="PERMANENTLY DELETE" secondary onPress={deleteAccount} loading={busy === 'delete'} disabled={!!busy && busy !== 'delete'} style={{ borderColor: colors.red }} />
           <LinkButton title="Cancel" color={colors.muted} onPress={() => { setDeleteForm(false); setDeletePassword(''); setDeleteWord(''); setMessages(all => ({ ...all, delete: null })); }} disabled={!!busy} />
         </View>}

@@ -62,6 +62,12 @@ interface WorkoutHistoryState {
   syncNow:
     (options?: {
       force?: boolean;
+
+      /*
+       * Re-read the whole cloud backup,
+       * not only recent changes.
+       */
+      full?: boolean;
     }) => Promise<WorkoutSyncResult | null>;
 
   loadHistory:
@@ -181,7 +187,9 @@ export const useWorkoutHistoryStore =
           });
 
           const result =
-            await syncWorkoutHistory();
+            await syncWorkoutHistory({
+              full: options?.full,
+            });
 
           if (
             getCurrentUid() !== uid

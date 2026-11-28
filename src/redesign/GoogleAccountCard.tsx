@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import React, { useRef, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { auth } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
 import { authenticateGoogle, googleStatus } from './googleAuth';

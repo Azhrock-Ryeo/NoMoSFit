@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, Image, Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Image, Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { Ionicons } from '@expo/vector-icons';
 import { applyActionCode, confirmPasswordReset, createUserWithEmailAndPassword, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from '../config/firebase';

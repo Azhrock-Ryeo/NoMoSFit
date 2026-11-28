@@ -81,10 +81,11 @@ export function IconButton({ icon, label, onPress, color = colors.muted, style, 
     <Ionicons name={icon} size={22} color={color}/>
   </Pressable>;
 }
-export function Field({ icon, style, ...props }: TextInputProps & { icon?: keyof typeof Ionicons.glyphMap }) {
-  return <View style={s.field}>
-    {icon && <View style={s.fieldIcon}><Ionicons name={icon} color="#BCBEC0" size={24}/></View>}
-    <TextInput {...props} style={[s.input, style]} placeholderTextColor="#A0A0A6" selectionColor={colors.green} />
+/** White pill by default (sign-in screens). `dark` sits quietly on panels and dark screens. */
+export function Field({ icon, style, dark = false, ...props }: TextInputProps & { icon?: keyof typeof Ionicons.glyphMap; dark?: boolean }) {
+  return <View style={[s.field, dark && s.fieldDark]}>
+    {icon && <View style={[s.fieldIcon, dark && { borderColor: colors.border }]}><Ionicons name={icon} color={dark ? colors.muted : '#BCBEC0'} size={dark ? 20 : 24}/></View>}
+    <TextInput {...props} style={[s.input, dark && { color: colors.white }, style]} placeholderTextColor={dark ? colors.faint : '#A0A0A6'} selectionColor={colors.green} />
   </View>;
 }
 export function Divider({ label = 'or login with' }: { label?: string }) {
@@ -126,7 +127,6 @@ export function SessionTable({ session, highlight = false }: { session: WorkoutS
     </View>)}
     {!rows.length && <T style={{ color: colors.muted }}>No completed sets were recorded.</T>}
     <View style={s.duration}><T>Duration</T><T style={{ color: colors.green }}>{formatTime(session.durationSeconds)}</T></View>
-    <T style={{ fontSize: 12, color: colors.muted, marginTop: 10 }}>Every row is a saved set. Reps are what you performed, not a preset or an average.</T>
   </View>;
 }
 export function ProgressTable({ current, previous }: { current: WorkoutSession; previous?: WorkoutSession }) {
@@ -163,6 +163,7 @@ const s = StyleSheet.create({
   secondaryButton:{borderWidth:1,borderColor:colors.border,backgroundColor:colors.panel},
   iconButton:{width:44,height:44,alignItems:'center',justifyContent:'center'},
   field:{backgroundColor:'#FFFFFF',borderRadius:20,minHeight:46,flexDirection:'row',alignItems:'center',overflow:'hidden'},
+  fieldDark:{backgroundColor:'#12151C',borderRadius:14,borderWidth:1,borderColor:colors.border},
   fieldIcon:{width:44,alignItems:'center',borderRightWidth:1,borderColor:'#D4D4D8'},
   input:{flex:1,minWidth:0,color:'#181A25',fontSize:14,paddingHorizontal:14,paddingVertical:10,fontFamily:fonts.body},
   dividerRow:{flexDirection:'row',alignItems:'center',gap:12,marginVertical:24},line:{height:1,flex:1,backgroundColor:'#555561'},dividerText:{fontSize:9,color:colors.muted},

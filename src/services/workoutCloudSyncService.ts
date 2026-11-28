@@ -341,12 +341,29 @@ function toLocalSession(
   };
 }
 
-async function pullMissing(uid: string) {
+async function pullMissing(uid: string, full: boolean) {
   const state = await readState(uid);
   const startedAt = Date.now();
 
+  /*
+   * Normally only what changed since the last download is read.
+   * Everything is read when a restore was asked for, or when this
+   * phone has no workouts at all (new phone, cleared data), so a
+   * backup is never left sitting in the cloud unseen.
+   */
+  let phoneIsEmpty = false;
+
+  try {
+    const stored = await AsyncStorage.getItem(getHistoryKey(uid));
+    const list = stored ? JSON.parse(stored) : [];
+
+    phoneIsEmpty = Array.isArray(list) && list.length === 0;
+  } catch {
+    phoneIsEmpty = false;
+  }
+
   const source =
-    state.lastPulledAt > 0
+    state.lastPulledAt > 0 && !full && !phoneIsEmpty
       ? query(
           historyCollection(uid),
           where(
@@ -441,8 +458,12 @@ async function pullMissing(uid: string) {
 let activeRun: Promise<WorkoutSyncResult> | null = null;
 let activeUid: string | null = null;
 let runAgain = false;
+let runAgainFull = false;
 
-async function runOnce(uid: string): Promise<WorkoutSyncResult> {
+async function runOnce(
+  uid: string,
+  full: boolean
+): Promise<WorkoutSyncResult> {
   let uploaded = 0;
   let restored = 0;
 
@@ -461,7 +482,7 @@ async function runOnce(uid: string): Promise<WorkoutSyncResult> {
     }
 
     uploaded = await uploadPending(uid);
-    restored = await pullMissing(uid);
+    restored = await pullMissing(uid, full);
 
     const state = await updateState(uid, (current) => ({
       ...current,
@@ -494,7 +515,15 @@ async function runOnce(uid: string): Promise<WorkoutSyncResult> {
   }
 }
 
-export function syncWorkoutHistory(): Promise<WorkoutSyncResult> {
+/*
+ * full: true re-reads the whole cloud backup instead of only
+ * recent changes ("Restore from cloud").
+ */
+export function syncWorkoutHistory(options?: {
+  full?: boolean;
+}): Promise<WorkoutSyncResult> {
+  const full = options?.full === true;
+
   const uid = auth.currentUser?.uid ?? null;
 
   if (!uid) {
@@ -509,6 +538,7 @@ export function syncWorkoutHistory(): Promise<WorkoutSyncResult> {
 
   if (activeRun && activeUid === uid) {
     runAgain = true;
+    runAgainFull = runAgainFull || full;
 
     return activeRun;
   }
@@ -516,7 +546,7 @@ export function syncWorkoutHistory(): Promise<WorkoutSyncResult> {
   activeUid = uid;
 
   const run: Promise<WorkoutSyncResult> = (async () => {
-    let result = await runOnce(uid);
+    let result = await runOnce(uid, full);
 
     while (
       runAgain &&
@@ -525,7 +555,10 @@ export function syncWorkoutHistory(): Promise<WorkoutSyncResult> {
     ) {
       runAgain = false;
 
-      const next = await runOnce(uid);
+      const nextFull = runAgainFull;
+      runAgainFull = false;
+
+      const next = await runOnce(uid, nextFull);
 
       result = {
         ...next,

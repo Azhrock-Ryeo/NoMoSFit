@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Alert } from 'react-native';
+import { AppAlert as Alert } from './feedback';
 import { auth } from '../config/firebase';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useWorkoutStore } from '../store/workoutStore';

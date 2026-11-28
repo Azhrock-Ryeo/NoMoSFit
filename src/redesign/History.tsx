@@ -74,7 +74,7 @@ export function HistoryScreen({ navigation }: HistoryProps<'HistoryList'>) {
         <T style={s.subtitle}>Every session, saved. Choose a workout to see what changed.</T>
         <Totals sessions={sessions} />
         {!error && <ProgressChart sessions={sessions} />}
-        <Field accessibilityLabel="Search workout history" icon="search-outline" placeholder="Search your workouts" value={search} onChangeText={setSearch} autoCorrect={false} />
+        <Field dark accessibilityLabel="Search workout history" icon="search-outline" placeholder="Search your workouts" value={search} onChangeText={setSearch} autoCorrect={false} />
         <View style={s.listHeader}><T style={s.sectionLabel}>YOUR WORKOUTS</T><T style={s.smallMuted}>{groups.length} {groups.length === 1 ? 'program' : 'programs'}</T></View>
         {error && <Notice message={error} retry={reload} />}
         {loading && !sessions.length && <Notice message="Loading your recorded sessions…" />}

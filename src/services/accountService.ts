@@ -1,4 +1,5 @@
 import { clearProgramDesignSettingsForUser } from '../redesign/preferences';
+import { clearProgramSyncStateForUser, deleteCloudProgramsForUser } from '../redesign/programSync';
 import {
   EmailAuthProvider,
   deleteUser,
@@ -706,6 +707,7 @@ async function clearLocalAccountData(
       ),
       clearProgramDesignSettingsForUser(uid),
       clearWorkoutSyncStateForUser(uid),
+      clearProgramSyncStateForUser(uid),
     ]);
 
   results.forEach(
@@ -774,6 +776,10 @@ export async function deleteAccountPermanently(
    * user is still authenticated.
    */
   await deleteCloudWorkoutHistoryForUser(
+    uid
+  );
+
+  await deleteCloudProgramsForUser(
     uid
   );
 

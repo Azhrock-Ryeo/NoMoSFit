@@ -1,7 +1,8 @@
 /** @jsxImportSource react */
 import { T as Text } from '../ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Share, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Share, TextInput, View } from 'react-native';
+import { AppAlert as Alert } from '../feedback';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,7 +82,7 @@ function TeamContent({ viewerUid }: { viewerUid: string }) {
 
   return <AppBackground>
     <View style={[s.header, s.page, { paddingTop: insets.top + 12 }]}>
-      <Text style={s.title}>Team</Text>
+      <Text style={s.title}>TEAM</Text>
       <IconButton icon="refresh" label="Refresh team" onPress={refresh} disabled={blocked} />
     </View>
     <FlatList<TeamMember> style={s.flex} data={members} keyExtractor={item => item.uid}
@@ -94,7 +95,7 @@ function TeamContent({ viewerUid }: { viewerUid: string }) {
         {dashboard.error && dashboard.overview ? <Text style={s.hint}>Showing the last loaded team overview. Pull down to retry.</Text> : null}
         {team ? <>
           <View style={s.panel}>
-            <Text style={s.heading}>{team.name}</Text>
+            <Text style={s.heading}>{team.name.toUpperCase()}</Text>
             <Text style={[s.body, { marginTop: 6 }]}>{members.length} {members.length === 1 ? 'member' : 'members'} · Train together</Text>
             <View style={[s.header, { paddingBottom: 0, marginTop: 12 }]}>
               <View style={s.flex}><Text style={s.hint}>INVITE CODE</Text><Text selectable style={[s.heading, s.green]}>{team.joinCode}</Text></View>
@@ -103,7 +104,7 @@ function TeamContent({ viewerUid }: { viewerUid: string }) {
           </View>
           <View style={s.panel}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={s.subheading}>This week</Text>{dashboard.weekLoading ? <ActivityIndicator color={colors.green} size="small" /> : null}
+              <Text style={s.subheading}>THIS WEEK</Text>{dashboard.weekLoading ? <ActivityIndicator color={colors.green} size="small" /> : null}
             </View>
             <View style={s.metrics}>
               <Metric value={summary ? String(summary.workouts) : '—'} label="WORKOUTS" />
@@ -114,18 +115,18 @@ function TeamContent({ viewerUid }: { viewerUid: string }) {
             {dashboard.weekError && summary ? <Text style={s.hint}>These are the last loaded totals; refresh could not complete.</Text> : null}
           </View>
           {dashboard.weekError ? <Notice problem={dashboard.weekError} retry={refresh} busy={blocked} /> : null}
-          <Text style={s.subheading}>Members</Text>
-          <Text style={s.hint}>Tap a name or profile to view that member's shared workouts. Members are ordered by this week's workouts, then volume.</Text>
+          <Text style={s.subheading}>MEMBERS</Text>
+          <Text style={s.hint}>Tap a member to see their shared workouts. Most active this week comes first.</Text>
         </> : null}
       </>}
       ListEmptyComponent={!dashboard.overview ? (!dashboard.error ? <Loading text="Loading your team..." /> : null) : !team ? <View>
         <View style={[s.panel, { gap: 14 }]}>
           <Ionicons name="people-outline" size={36} color={colors.green} />
-          <Text style={s.heading}>Train with your crew</Text>
+          <Text style={s.heading}>TRAIN WITH YOUR CREW</Text>
           <Text style={s.body}>Create a team or join with an invite code. Completed workouts shared with the team appear inside each member's profile.</Text>
           {mode === 'none' ? <>
-            <Button title="Create team" onPress={() => setMode('create')} disabled={working} />
-            <Button title="Join team" onPress={() => setMode('join')} secondary disabled={working} />
+            <Button title="CREATE TEAM" onPress={() => setMode('create')} disabled={working} />
+            <Button title="JOIN TEAM" onPress={() => setMode('join')} secondary disabled={working} />
           </> : <>
             <TextInput accessibilityLabel={mode === 'create' ? 'Team name' : 'Team invite code'}
               value={mode === 'create' ? name : code}
@@ -133,15 +134,14 @@ function TeamContent({ viewerUid }: { viewerUid: string }) {
               placeholder={mode === 'create' ? 'Team name' : 'ABC123'} placeholderTextColor={colors.muted}
               autoCapitalize={mode === 'create' ? 'words' : 'characters'} autoCorrect={false}
               maxLength={mode === 'create' ? 40 : 6} editable={!working} style={s.search} />
-            <Button title={mode === 'create' ? 'Create team' : 'Join team'} onPress={() => { void changeTeam(mode === 'create' ? 'create' : 'join'); }} loading={working} />
-            <Button title="Cancel" onPress={() => setMode('none')} secondary disabled={working} />
+            <Button title={mode === 'create' ? 'CREATE TEAM' : 'JOIN TEAM'} onPress={() => { void changeTeam(mode === 'create' ? 'create' : 'join'); }} loading={working} />
+            <Button title="CANCEL" onPress={() => setMode('none')} secondary disabled={working} />
           </>}
         </View>
       </View> : <Text style={s.body}>No members were returned. Pull down to refresh.</Text>}
       ListFooterComponent={team ? <View style={s.footer}>
-        {team.ownerId === viewerUid ? <Text style={s.footerText}>You own this team. The existing owner-leave restriction is unchanged.</Text> :
-          <Button title="Leave team" secondary onPress={confirmLeave} loading={working} disabled={blocked} />}
-        <Text style={s.footerText}>The full activity feed is hidden here. No workouts have been deleted.</Text>
+        {team.ownerId === viewerUid ? <Text style={s.footerText}>You own this team, so you cannot leave it.</Text> :
+          <Button title="LEAVE TEAM" secondary onPress={confirmLeave} loading={working} disabled={blocked} />}
         {working ? <Text style={s.footerText}>Waiting for the server. Keep this screen open until the update completes.</Text> : null}
       </View> : working ? <Text style={s.footerText}>Waiting for the server. Your request has not yet been confirmed.</Text> : null} />
     {selection && focused && selection.teamId === team?.id ? <MemberHistory selection={selection} onClose={closeMember} /> : null}

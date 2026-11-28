@@ -15,10 +15,12 @@ import { useWorkoutStore } from '../store/workoutStore';
 import TeamScreen from './team/TeamScreen';
 import { AccountSettingsScreen, ProfileScreen } from './Profile';
 import AuthFlow from './Auth';
-import { HomeScreen, ProgramEditor, ProgramsScreen } from './Programs';
+import { ProgramEditor, ProgramsScreen } from './Programs';
+import { HomeScreen } from './Home';
 import { HistoryScreen, ProgramHistoryScreen, SessionDetailScreen } from './History';
 import { AfterWorkoutScreen, WorkoutScreen } from './Workout';
 import { LoadingScreen } from './ui';
+import { AlertHost } from './feedback';
 import { colors, fonts } from './tokens';
 import { useProgramSettings } from './preferences';
 import { useWorkoutPresentation } from './startWorkout';
@@ -71,7 +73,7 @@ export default function DesignNavigator(){
   },[uid]);
   if(fontError)return <View style={{flex:1,backgroundColor:colors.background,padding:32,justifyContent:'center'}}><Text style={{color:'white',fontSize:18}}>The Goldman font could not be loaded. Check that @expo-google-fonts/goldman is installed, then restart Metro with --clear.</Text><Text style={{color:'#AAA',marginTop:14}}>{fontError.message}</Text></View>;
   if(loading||!fontsLoaded)return <LoadingScreen/>;
-  return <NavigationContainer theme={theme}>
+  return <><NavigationContainer theme={theme}>
     <Stack.Navigator key={user&&!registrationActive ? uid : 'auth'} screenOptions={{...screenOptions,animation:'slide_from_right'}}>
       {user&&!registrationActive?<>
         <Stack.Screen name="Main" component={MainTabs}/>
@@ -79,5 +81,5 @@ export default function DesignNavigator(){
         <Stack.Screen name="AfterWorkout" component={AfterWorkoutScreen} options={{gestureEnabled:false}}/>
       </>:<Stack.Screen name="Auth">{()=> <AuthFlow setRegistrationActive={setRegistrationActive} onDone={done}/>}</Stack.Screen>}
     </Stack.Navigator>
-  </NavigationContainer>;
+  </NavigationContainer><AlertHost/></>;
 }
